@@ -12,7 +12,9 @@ import {
   UserConfig,
   DailyRecord,
   DEFAULT_CONFIG,
-  signOut
+  logout,
+  subscribeToSyncStatus,
+  SyncStatus
 } from "./lib/firebase";
 
 // Components
@@ -22,18 +24,27 @@ import HabitsView from "./components/HabitsView";
 import SettingsView from "./components/SettingsView";
 
 // Icons
-import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle } from "lucide-react";
+import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle, Database, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [daysData, setDaysData] = useState<Record<string, DailyRecord>>({});
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
 
   // App state
   const [activeTab, setActiveTab] = useState<"productive" | "habits" | "settings">("productive");
   const [appLoading, setAppLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
+
+  // Sync state tracking subscription
+  useEffect(() => {
+    const unsubscribeSync = subscribeToSyncStatus((status) => {
+      setSyncStatus(status);
+    });
+    return () => unsubscribeSync();
+  }, []);
 
   // Monitor Google Authentication session
   useEffect(() => {
@@ -117,11 +128,10 @@ export default function App() {
 
   // Safe logout handler
   const handleLogout = async () => {
-    localStorage.removeItem("local_user_session");
     try {
-      await signOut(auth);
+      await logout();
     } catch (e) {
-      console.warn("Firebase signout warning ignored during local logout", e);
+      console.warn("Google Drive signout warning ignored during local logout", e);
     }
     setCurrentUser(null);
     setUserConfig(null);
@@ -204,9 +214,34 @@ export default function App() {
               <h1 className={`text-base font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
                 GB - Productivity
               </h1>
-              <span className="text-[10px] text-brand-teal font-extrabold tracking-wider uppercase">
-                WORKSPACE INDONESIA
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-brand-teal font-extrabold tracking-wider uppercase">
+                  WORKSPACE INDONESIA
+                </span>
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold leading-none border ${
+                  syncStatus === "synced"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400"
+                    : syncStatus === "syncing"
+                    ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400"
+                    : syncStatus === "error"
+                    ? "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/30 dark:text-rose-400"
+                    : "bg-slate-100 border-slate-200 text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50 dark:text-slate-400"
+                }`}>
+                  <span className={`w-1 h-1 rounded-full ${
+                    syncStatus === "synced"
+                      ? "bg-emerald-500 animate-pulse"
+                      : syncStatus === "syncing"
+                      ? "bg-amber-500 animate-spin"
+                      : syncStatus === "error"
+                      ? "bg-rose-500"
+                      : "bg-slate-400"
+                  }`} />
+                  {syncStatus === "synced" && "Synced to Drive"}
+                  {syncStatus === "syncing" && "Syncing..."}
+                  {syncStatus === "error" && "Sync Error"}
+                  {syncStatus === "idle" && "Offline Cache"}
+                </span>
+              </div>
             </div>
           </div>
 
