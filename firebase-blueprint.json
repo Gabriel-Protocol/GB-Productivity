@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "UserConfig": {
+      "title": "UserConfig",
+      "description": "User preferences, habit definitions, and productivity thresholds",
+      "type": "object",
+      "properties": {
+        "theme": { "type": "string" },
+        "thresholdVeryBad": { "type": "number" },
+        "thresholdBad": { "type": "number" },
+        "thresholdFair": { "type": "number" },
+        "habitsConfig": {
+          "type": "array",
+          "description": "Configuration list of habit groups and their to-do list items"
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["theme", "thresholdVeryBad", "thresholdBad", "thresholdFair", "habitsConfig"]
+    },
+    "UserDay": {
+      "title": "UserDay",
+      "description": "Daily recording of productive hours and completed habits",
+      "type": "object",
+      "properties": {
+        "hours": { "type": "number" },
+        "completedHabits": {
+          "type": "array"
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["hours", "completedHabits"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserConfig",
+      "description": "User configuration profile"
+    },
+    "users/{userId}/days/{dateId}": {
+      "schema": "UserDay",
+      "description": "Productive hours and habit completions for a specific date"
+    }
+  }
+}

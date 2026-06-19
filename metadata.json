@@ -1,0 +1,6 @@
+{
+  "name": "GB - Productivity",
+  "description": "A productivity workspace featuring productive hours log, custom indicator thresholds, simple habit dashboard with calendar integration, and database secure storage via Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

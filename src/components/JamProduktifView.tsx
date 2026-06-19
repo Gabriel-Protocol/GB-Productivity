@@ -1,0 +1,407 @@
+import React, { useState, useEffect } from "react";
+import { DailyRecord, UserConfig } from "../types";
+import { saveDailyRecord } from "../lib/firebase";
+import { Clock, TrendingUp, AlertCircle, Info, CalendarDays, CheckCircle2, Save } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+
+interface JamProduktifViewProps {
+  userId: string;
+  config: UserConfig;
+  daysData: Record<string, DailyRecord>;
+  onDataUpdated: (dateId: string, hours: number) => void;
+}
+
+const MONTH_NAMES = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+
+export default function JamProduktifView({
+  userId,
+  config,
+  daysData,
+  onDataUpdated
+}: JamProduktifViewProps) {
+  // Current month and year selectors
+  const today = new Date();
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth()); // 0-indexed
+
+  // Save states for individual days
+  const [savingStatus, setSavingStatus] = useState<Record<string, "idle" | "saving" | "saved">>({});
+  const [tempHours, setTempHours] = useState<Record<string, string>>({});
+
+  // Get total days in the selected month
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const numDays = getDaysInMonth(selectedYear, selectedMonth);
+
+  // Generate array of date keys e.g. ["2026-06-01", "2026-06-02", ...]
+  const dateKeys = Array.from({ length: numDays }, (_, i) => {
+    const dayNum = i + 1;
+    const formattedDay = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
+    const formattedMonth = selectedMonth + 1 < 10 ? `0${selectedMonth + 1}` : `${selectedMonth + 1}`;
+    return `${selectedYear}-${formattedMonth}-${formattedDay}`;
+  });
+
+  // Pre-fill local tempHours state when month/year or raw daysData changes
+  useEffect(() => {
+    const newTempHours: Record<string, string> = {};
+    dateKeys.forEach((dateKey) => {
+      const hoursLogged = daysData[dateKey]?.hours;
+      newTempHours[dateKey] = hoursLogged !== undefined && hoursLogged > 0 ? String(hoursLogged) : "";
+    });
+    setTempHours(newTempHours);
+  }, [selectedMonth, selectedYear, daysData]);
+
+  // Determine indicator label & formatting rules
+  const getIndicator = (hours: number) => {
+    const vBad = config.thresholdVeryBad;
+    const bad = config.thresholdBad;
+    const fair = config.thresholdFair;
+
+    if (hours <= 0) return { label: "-", color: "bg-slate-50 text-slate-350 border-slate-100" };
+    if (hours <= vBad) return { label: "Sangat Jelek", color: "bg-indicator-sj text-white border-transparent font-medium" };
+    if (hours <= bad) return { label: "Jelek", color: "bg-indicator-j text-slate-800 border-transparent font-medium" };
+    if (hours <= fair) return { label: "Cukup", color: "bg-indicator-c text-white border-transparent font-medium" };
+    return { label: "Bagus", color: "bg-indicator-b text-white border-transparent font-semibold" };
+  };
+
+  // Quick stats calculations
+  let totalHours = 0;
+  let activeDaysCount = 0;
+  const distributions = { veryBad: 0, bad: 0, fair: 0, good: 0 };
+
+  dateKeys.forEach((key) => {
+    const hrs = Number(tempHours[key] || "0");
+    if (hrs > 0) {
+      totalHours += hrs;
+      activeDaysCount++;
+
+      const vBad = config.thresholdVeryBad;
+      const bad = config.thresholdBad;
+      const fair = config.thresholdFair;
+
+      if (hrs <= vBad) distributions.veryBad++;
+      else if (hrs <= bad) distributions.bad++;
+      else if (hrs <= fair) distributions.fair++;
+      else distributions.good++;
+    }
+  });
+
+  const averageHours = activeDaysCount > 0 ? (totalHours / activeDaysCount).toFixed(1) : "0.0";
+
+  // Handle saving hours for a day
+  const handleHoursSave = async (dateKey: string, inputVal: string) => {
+    const parsedHours = parseFloat(inputVal);
+    const resolvedHours = isNaN(parsedHours) || parsedHours < 0 ? 0 : Math.min(parsedHours, 24);
+
+    // Update state to match clean representation
+    setTempHours(prev => ({
+      ...prev,
+      [dateKey]: resolvedHours > 0 ? String(resolvedHours) : ""
+    }));
+
+    if ((daysData[dateKey]?.hours ?? 0) === resolvedHours) {
+      // Avoid redundant saving
+      return;
+    }
+
+    setSavingStatus((prev) => ({ ...prev, [dateKey]: "saving" }));
+    try {
+      const existingRecord = daysData[dateKey] || { hours: 0, completedHabits: [] };
+      const updatedRecord = { ...existingRecord, hours: resolvedHours };
+
+      await saveDailyRecord(userId, dateKey, updatedRecord);
+      onDataUpdated(dateKey, resolvedHours);
+
+      setSavingStatus((prev) => ({ ...prev, [dateKey]: "saved" }));
+      setTimeout(() => {
+        setSavingStatus((prev) => ({ ...prev, [dateKey]: "idle" }));
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to save daily record hours:", err);
+      setSavingStatus((prev) => ({ ...prev, [dateKey]: "idle" }));
+    }
+  };
+
+  // Fast month shifting links
+  const adjustMonth = (direction: number) => {
+    let nextMonth = selectedMonth + direction;
+    let nextYear = selectedYear;
+    if (nextMonth > 11) {
+      nextMonth = 0;
+      nextYear += 1;
+    } else if (nextMonth < 0) {
+      nextMonth = 11;
+      nextYear -= 1;
+    }
+    setSelectedMonth(nextMonth);
+    setSelectedYear(nextYear);
+  };
+
+  return (
+    <div className="space-y-6" id="productive-hours-view">
+      {/* Month Navigator Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm" id="month-navigator">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-brand-teal/10 rounded-lg text-brand-teal">
+            <CalendarDays className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Pilih Waktu Catatan</h2>
+            <p className="text-xs text-slate-400">Atur jam produktif harian Anda disini</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => adjustMonth(-1)}
+            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition duration-150 outline-none hover:border-brand-teal"
+            id="prev-month-btn"
+          >
+            &larr;
+          </button>
+
+          <div className="flex gap-2">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="py-1.5 px-3 bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-lg text-sm focus:border-brand-teal focus:ring-1 focus:ring-brand-teal/20 outline-none cursor-pointer"
+              id="select-month"
+            >
+              {MONTH_NAMES.map((name, idx) => (
+                <option key={name} value={idx}>
+                  {name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="py-1.5 px-3 bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-lg text-sm focus:border-brand-teal focus:ring-1 focus:ring-brand-teal/20 outline-none cursor-pointer"
+              id="select-year"
+            >
+              {Array.from({ length: 6 }, (_, i) => today.getFullYear() - 3 + i).map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => adjustMonth(1)}
+            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition duration-150 outline-none hover:border-brand-teal"
+            id="next-month-btn"
+          >
+            &rarr;
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Insights Panel */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4" id="stats-summary-grid">
+        {/* Total Hours Card */}
+        <div className="bg-gradient-to-br from-brand-teal to-brand-teal/80 text-white p-5 rounded-2xl shadow-md flex items-center justify-between">
+          <div>
+            <span className="text-xs text-brand-ice font-semibold block uppercase tracking-wider mb-1">
+              Total Jam Sebulan
+            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold">{totalHours.toFixed(1)}</span>
+              <span className="text-sm">jam</span>
+            </div>
+          </div>
+          <div className="p-3 bg-white/10 rounded-xl">
+            <Clock className="w-6 h-6 text-brand-ice" />
+          </div>
+        </div>
+
+        {/* Avg hours per day Card */}
+        <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-400 font-semibold block uppercase tracking-wider mb-1">
+              Rata-rata Harian
+            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold text-slate-800">{averageHours}</span>
+              <span className="text-xs text-slate-400 font-medium">jam/hari aktif</span>
+            </div>
+          </div>
+          <div className="p-3 bg-brand-teal/5 rounded-xl text-brand-teal">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Active Days Counter */}
+        <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-400 font-semibold block uppercase tracking-wider mb-1">
+              Hari Terisi
+            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold text-slate-800">{activeDaysCount}</span>
+              <span className="text-xs text-slate-400">/ {numDays} hari</span>
+            </div>
+          </div>
+          <div className="p-3 bg-brand-ice/15 rounded-xl text-brand-teal">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Distribution mini dashboard */}
+        <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
+          <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider mb-2">
+            Penyebaran Indikator
+          </span>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indicator-b" /> Bagus
+              </span>
+              <span className="font-semibold text-slate-700">{distributions.good} hari</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indicator-c" /> Cukup
+              </span>
+              <span className="font-semibold text-slate-700">{distributions.fair} hari</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indicator-j" /> Jelek
+              </span>
+              <span className="font-semibold text-slate-700">{distributions.bad} hari</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indicator-sj" /> Sangat Jelek
+              </span>
+              <span className="font-semibold text-slate-700">{distributions.veryBad} hari</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Guide explaining boundaries */}
+      <div className="bg-brand-ice/10 border border-brand-ice/20 p-3 rounded-xl flex items-start gap-2.5 text-xs text-slate-600">
+        <Info className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
+        <div>
+          <span className="font-semibold text-brand-teal">Panduan Batas Indikator Aktif: </span>
+          <span>
+            Sangat Jelek (&le; {config.thresholdVeryBad}j), Jelek (&le; {config.thresholdBad}j), Cukup (&le; {config.thresholdFair}j), Bagus (&gt; {config.thresholdFair}j). Batas jam ini dapat diatur di tab Pengaturan.
+          </span>
+        </div>
+      </div>
+
+      {/* Daily list / input grid */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden" id="days-input-table">
+        <div className="p-5 border-b border-slate-100 bg-slate-55/30">
+          <h3 className="font-bold text-slate-800 text-base">Rincian Jam Produktif Harian</h3>
+          <p className="text-xs text-slate-400">Silakan isi waktu produktif Anda (dalam bentuk jam) dan ketuk tombol simpan atau klik di luar kotak.</p>
+        </div>
+
+        <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+          {dateKeys.map((dateKey) => {
+            const dayNumber = parseInt(dateKey.split("-")[2]);
+            const hoursVal = tempHours[dateKey] ?? "";
+            const numHrs = Number(hoursVal || "0");
+            const indicator = getIndicator(numHrs);
+            const status = savingStatus[dateKey] || "idle";
+
+            // Format date text to be highly friendly Indonesian: "Kamis, 18 Juni 2026"
+            const dayDateObj = new Date(selectedYear, selectedMonth, dayNumber);
+            const dayNameIndo = dayDateObj.toLocaleDateString("id-ID", { weekday: "long" });
+
+            return (
+              <div
+                key={dateKey}
+                className="p-4 sm:px-6 hover:bg-slate-50/75 transition duration-150 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+              >
+                {/* Date string column */}
+                <div className="flex items-center gap-4 min-w-[140px]">
+                  <div className="w-10 h-10 bg-slate-50 border border-slate-100 text-slate-600 rounded-xl flex flex-col items-center justify-center font-bold text-sm">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">TGL</span>
+                    <span className="leading-none text-slate-700">{dayNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 block tracking-wider uppercase">
+                      {dayNameIndo}
+                    </span>
+                    <span className="text-sm font-bold text-slate-700">
+                      {dayNumber} {MONTH_NAMES[selectedMonth]} {selectedYear}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Input with inline badge & save button */}
+                <div className="flex items-center gap-3 justify-between sm:justify-end grow">
+                  {/* Indicator badge */}
+                  <div className="sm:mr-4">
+                    <span className={`px-3 py-1.5 rounded-full text-xs border ${indicator.color}`}>
+                      {indicator.label}
+                    </span>
+                  </div>
+
+                  {/* Input container */}
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        step="0.5"
+                        placeholder="0"
+                        value={hoursVal}
+                        onChange={(e) =>
+                          setTempHours((prev) => ({ ...prev, [dateKey]: e.target.value }))
+                        }
+                        onBlur={() => handleHoursSave(dateKey, hoursVal)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleHoursSave(dateKey, hoursVal);
+                            const target = e.target as HTMLInputElement;
+                            target.blur();
+                          }
+                        }}
+                        className="w-24 pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-center font-bold text-slate-800 bg-slate-50 focus:bg-white focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 transition duration-150 outline-none text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold pointer-events-none">
+                        j
+                      </span>
+                    </div>
+
+                    {/* Action save indicator button */}
+                    <button
+                      onClick={() => handleHoursSave(dateKey, hoursVal)}
+                      className={`p-2 rounded-xl border transition duration-150 outline-none ${
+                        status === "saving"
+                          ? "bg-amber-50 border-amber-200 text-amber-500 cursor-wait"
+                          : status === "saved"
+                          ? "bg-teal-50 border-teal-200 text-teal-600"
+                          : "bg-white border-slate-200 hover:border-brand-teal text-slate-400 hover:text-brand-teal"
+                      }`}
+                      title="Simpan Jam Produktif"
+                    >
+                      {status === "saving" ? (
+                        <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      ) : status === "saved" ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
