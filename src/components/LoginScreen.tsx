@@ -139,12 +139,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               </button>
             </div>
 
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight mb-4">
               GB - Productivity
             </h1>
-            <span className="text-[9px] text-brand-wine font-extrabold tracking-widest uppercase mb-4 block">
-              WORKSPACE INDONESIA
-            </span>
 
             <p className="text-xs text-slate-500 mb-6 leading-relaxed">
               Selamat datang kembali! Masuk aman menggunakan Google Sign-In untuk mengelola seluruh pencatatan jam produktif dan kebiasaan harian Anda.

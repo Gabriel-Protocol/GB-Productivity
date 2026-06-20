@@ -287,16 +287,7 @@ export default function JamProduktifView({
         </div>
       </div>
 
-      {/* Guide explaining boundaries */}
-      <div className="bg-brand-ice/10 border border-brand-ice/20 p-3 rounded-xl flex items-start gap-2.5 text-xs text-slate-600">
-        <Info className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-brand-teal">Panduan Batas Indikator Aktif: </span>
-          <span>
-            Sangat Jelek (&le; {config.thresholdVeryBad}j), Jelek (&le; {config.thresholdBad}j), Cukup (&le; {config.thresholdFair}j), Bagus (&gt; {config.thresholdFair}j). Batas jam ini dapat diatur di tab Pengaturan.
-          </span>
-        </div>
-      </div>
+      {/* Guide explaining boundaries removed */}
 
       {/* Daily list / input grid */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden" id="days-input-table">
@@ -357,6 +348,7 @@ export default function JamProduktifView({
                         step="0.5"
                         placeholder="0"
                         value={hoursVal}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
                           setTempHours((prev) => ({ ...prev, [dateKey]: e.target.value }))
                         }

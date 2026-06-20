@@ -1,7 +1,9 @@
 export interface HabitGroup {
   id: string;
   name: string;
-  items: string[];
+  items: any[];
+  enabled?: boolean;
+  color?: string;
 }
 
 export interface UserConfig {

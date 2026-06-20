@@ -21,9 +21,10 @@ import LoginScreen from "./components/LoginScreen";
 import JamProduktifView from "./components/JamProduktifView";
 import HabitsView from "./components/HabitsView";
 import SettingsView from "./components/SettingsView";
+import ExportView from "./components/ExportView";
 
 // Icons
-import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle, Database } from "lucide-react";
+import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle, Database, FileText } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function App() {
@@ -32,7 +33,7 @@ export default function App() {
   const [daysData, setDaysData] = useState<Record<string, DailyRecord>>({});
 
   // App state
-  const [activeTab, setActiveTab] = useState<"productive" | "habits" | "settings">("productive");
+  const [activeTab, setActiveTab] = useState<"productive" | "habits" | "settings" | "export">("productive");
   const [appLoading, setAppLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
 
@@ -185,9 +186,6 @@ export default function App() {
                 GB - Productivity
               </h1>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-brand-teal font-extrabold tracking-wider uppercase">
-                  WORKSPACE INDONESIA
-                </span>
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold leading-none border bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400">
                   <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
                   Firebase Online
@@ -248,6 +246,23 @@ export default function App() {
               <Sliders className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Pengaturan</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab("export")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                activeTab === "export"
+                  ? isDark
+                    ? "bg-brand-teal text-white shadow-inner"
+                    : "bg-white text-brand-teal shadow-sm border border-slate-100"
+                  : isDark
+                  ? "text-slate-400 hover:text-white"
+                  : "text-slate-500 hover:text-brand-teal"
+              }`}
+              id="tab-export"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ekspor Data</span>
+            </button>
           </nav>
         </div>
       </header>
@@ -279,6 +294,18 @@ export default function App() {
               config={userConfig}
               onConfigUpdated={(updated) => setUserConfig(updated)}
               onLogout={handleLogout}
+            />
+          )}
+
+          {activeTab === "export" && userConfig && (
+            <ExportView
+              userId={currentUser.uid}
+              config={userConfig}
+              daysData={daysData}
+              onDataImported={(newConfig, newDaysData) => {
+                setUserConfig(newConfig);
+                setDaysData(newDaysData);
+              }}
             />
           )}
         </div>
