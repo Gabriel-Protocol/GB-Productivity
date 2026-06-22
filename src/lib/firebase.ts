@@ -18,7 +18,8 @@ import {
   getDoc, 
   setDoc, 
   collection, 
-  getDocs 
+  getDocs,
+  writeBatch
 } from "firebase/firestore";
 import defaultFirebaseConfig from "../../firebase-applet-config.json";
 
@@ -184,6 +185,36 @@ export async function saveDailyRecord(userId: string, dateId: string, record: Da
     });
   } catch (error) {
     console.error(`Failed to preserve daily record for date ${dateId}`, error);
+    throw error;
+  }
+}
+
+export async function bulkSaveDailyRecords(userId: string, records: Record<string, DailyRecord>): Promise<void> {
+  try {
+    const keys = Object.keys(records);
+    if (keys.length === 0) return;
+
+    // Split keys into chunks of 400 (Firestore writeBatch maximum is 500)
+    const chunkSize = 400;
+    const chunks: string[][] = [];
+    for (let i = 0; i < keys.length; i += chunkSize) {
+      chunks.push(keys.slice(i, i + chunkSize));
+    }
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach((dateKey) => {
+        const record = records[dateKey];
+        const docRef = doc(db, "users", userId, "days", dateKey);
+        batch.set(docRef, {
+          hours: Number(record.hours || 0),
+          completedHabits: record.completedHabits || []
+        });
+      });
+      await batch.commit();
+    }
+  } catch (error) {
+    console.error("Failed to perform bulk restore of daily records via batch", error);
     throw error;
   }
 }

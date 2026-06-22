@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { DailyRecord, UserConfig } from "../types";
-import { saveDailyRecord, saveUserConfig } from "../lib/firebase";
+import { saveDailyRecord, saveUserConfig, bulkSaveDailyRecords } from "../lib/firebase";
 import { 
   Download, 
   Upload, 
@@ -346,11 +346,8 @@ export default function ExportView({
         // Merge and restore each Firestore configuration
         await saveUserConfig(userId, parsed.config);
 
-        // Upload days in batches to user firestore
-        const keys = Object.keys(parsed.daysData);
-        for (const dateKey of keys) {
-          await saveDailyRecord(userId, dateKey, parsed.daysData[dateKey]);
-        }
+        // Upload days in batches to user firestore (efficient batch operations)
+        await bulkSaveDailyRecords(userId, parsed.daysData);
 
         setStatus({ type: "success", text: "Data cadangan sukses diimpor dan disinkronkan ke cloud! Memuat ulang halaman..." });
         
