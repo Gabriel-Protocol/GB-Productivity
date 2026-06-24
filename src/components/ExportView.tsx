@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { DailyRecord, UserConfig } from "../types";
-import { saveDailyRecord, saveUserConfig, bulkSaveDailyRecords } from "../lib/firebase";
+import { saveDailyRecord, saveUserConfig, bulkSaveDailyRecords, calculateAndSaveSummary } from "../lib/firebase";
 import { 
   Download, 
   Upload, 
@@ -348,6 +348,9 @@ export default function ExportView({
 
         // Upload days in batches to user firestore (efficient batch operations)
         await bulkSaveDailyRecords(userId, parsed.daysData);
+
+        // Recalculate and update the Summary Hub in Firestore
+        await calculateAndSaveSummary(userId, parsed.daysData, parsed.config);
 
         setStatus({ type: "success", text: "Data cadangan sukses diimpor dan disinkronkan ke cloud! Memuat ulang halaman..." });
         

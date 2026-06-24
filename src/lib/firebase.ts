@@ -21,10 +21,24 @@ import {
   getDocs,
   writeBatch
 } from "firebase/firestore";
-import defaultFirebaseConfig from "../../firebase-applet-config.json";
 
 // Helper function to load Firebase Configuration (custom from localStorage or default)
 export function getFirebaseConfig() {
+  // SECURE CONFIG FOR GITHUB: Prioritize import.meta.env
+  const envConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID
+  };
+
+  if (envConfig.apiKey && envConfig.projectId) {
+    return envConfig;
+  }
+
   try {
     const custom = localStorage.getItem("custom_firebase_config");
     if (custom) {
@@ -33,7 +47,7 @@ export function getFirebaseConfig() {
   } catch (e) {
     console.warn("Failed to parse custom firebase config from localStorage", e);
   }
-  return defaultFirebaseConfig;
+  return {};
 }
 
 const activeConfig = getFirebaseConfig();
@@ -174,6 +188,74 @@ export async function getUserDays(userId: string): Promise<Record<string, DailyR
     console.warn("Failed to retrieve user days history", error);
   }
   return result;
+}
+
+export async function saveProductivitySummary(
+  userId: string, 
+  summary: { totalHoursMonth: number; avgHoursDay: number; daysFilled: number; indicatorSpread: string }
+): Promise<void> {
+  try {
+    const docRef = doc(db, "users", userId, "summary", "productivity");
+    await setDoc(docRef, summary, { merge: true });
+  } catch (error) {
+    console.error("Failed to save productivity summary", error);
+    throw error;
+  }
+}
+
+export async function calculateAndSaveSummary(
+  userId: string,
+  daysData: Record<string, DailyRecord>,
+  config: UserConfig
+): Promise<void> {
+  try {
+    let totalHoursMonth = 0;
+    let daysFilled = 0;
+    const dist = { veryBad: 0, bad: 0, fair: 0, good: 0 };
+
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth(); // 0-indexed
+    const numDays = new Date(year, month + 1, 0).getDate();
+    
+    const formattedMonth = String(month + 1).padStart(2, "0");
+    const dateKeys: string[] = [];
+    for (let i = 1; i <= numDays; i++) {
+      const formattedDay = String(i).padStart(2, "0");
+      dateKeys.push(`${year}-${formattedMonth}-${formattedDay}`);
+    }
+
+    dateKeys.forEach((key) => {
+      const hrs = daysData[key]?.hours || 0;
+      if (hrs > 0) {
+        totalHoursMonth += hrs;
+        daysFilled++;
+        if (hrs <= config.thresholdVeryBad) dist.veryBad++;
+        else if (hrs <= config.thresholdBad) dist.bad++;
+        else if (hrs <= config.thresholdFair) dist.fair++;
+        else dist.good++;
+      }
+    });
+
+    const avgHoursDay = daysFilled > 0 ? Number((totalHoursMonth / daysFilled).toFixed(1)) : 0;
+    let indicatorSpread = "Belum Ada Data";
+    const maxD = Math.max(dist.veryBad, dist.bad, dist.fair, dist.good);
+    if (maxD > 0) {
+      if (dist.good === maxD) indicatorSpread = "Fokus & Deep Work Dominan";
+      else if (dist.fair === maxD) indicatorSpread = "Cukup Produktif";
+      else if (dist.bad === maxD) indicatorSpread = "Kurang Produktif";
+      else if (dist.veryBad === maxD) indicatorSpread = "Sangat Kurang Produktif";
+    }
+
+    await saveProductivitySummary(userId, {
+      totalHoursMonth: Number(totalHoursMonth.toFixed(1)),
+      avgHoursDay,
+      daysFilled,
+      indicatorSpread
+    });
+  } catch (error) {
+    console.error("Failed to calculate and save summary", error);
+  }
 }
 
 export async function saveDailyRecord(userId: string, dateId: string, record: DailyRecord): Promise<void> {

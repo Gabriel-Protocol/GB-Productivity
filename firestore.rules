@@ -57,6 +57,11 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) && isValidUserDay(request.resource.data) && isValidDateId(dateId);
       }
+      
+      match /summary/{summaryId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId);
+      }
     }
   }
 }
