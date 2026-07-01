@@ -208,13 +208,15 @@ export async function getUserDays(userId: string): Promise<Record<string, DailyR
 
 export async function saveProductivitySummary(
   userId: string, 
-  summary: { totalHoursMonth: number; avgHoursDay: number; daysFilled: number; indicatorSpread: string }
+  summary: { totalHoursMonth: number; avgHoursDay: number; daysFilled: number; indicatorSpread: string },
+  docId: string = "productivity"
 ): Promise<void> {
   try {
-    const docRef = doc(db, "users", userId, "summary", "productivity");
-    await setDoc(docRef, summary, { merge: true });
+    const docRef = doc(db, "users", userId, "summary", docId);
+    // Nest under the 'productivity' key and merge to prevent overwriting other apps' fields (like GB - Money Management)
+    await setDoc(docRef, { productivity: summary }, { merge: true });
   } catch (error) {
-    console.error("Failed to save productivity summary", error);
+    console.error(`Failed to save productivity summary to ${docId}`, error);
     throw error;
   }
 }
@@ -222,53 +224,92 @@ export async function saveProductivitySummary(
 export async function calculateAndSaveSummary(
   userId: string,
   daysData: Record<string, DailyRecord>,
-  config: UserConfig
+  config: UserConfig,
+  targetYear?: number,
+  targetMonth?: number // 0-indexed
 ): Promise<void> {
   try {
-    let totalHoursMonth = 0;
-    let daysFilled = 0;
-    const dist = { veryBad: 0, bad: 0, fair: 0, good: 0 };
+    const calculateForMonth = async (year: number, month: number) => {
+      let totalHoursMonth = 0;
+      let daysFilled = 0;
+      const dist = { veryBad: 0, bad: 0, fair: 0, good: 0 };
 
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth(); // 0-indexed
-    const numDays = new Date(year, month + 1, 0).getDate();
-    
-    const formattedMonth = String(month + 1).padStart(2, "0");
-    const dateKeys: string[] = [];
-    for (let i = 1; i <= numDays; i++) {
-      const formattedDay = String(i).padStart(2, "0");
-      dateKeys.push(`${year}-${formattedMonth}-${formattedDay}`);
-    }
-
-    dateKeys.forEach((key) => {
-      const hrs = daysData[key]?.hours || 0;
-      if (hrs > 0) {
-        totalHoursMonth += hrs;
-        daysFilled++;
-        if (hrs <= config.thresholdVeryBad) dist.veryBad++;
-        else if (hrs <= config.thresholdBad) dist.bad++;
-        else if (hrs <= config.thresholdFair) dist.fair++;
-        else dist.good++;
+      const numDays = new Date(year, month + 1, 0).getDate();
+      const formattedMonth = String(month + 1).padStart(2, "0");
+      const dateKeys: string[] = [];
+      for (let i = 1; i <= numDays; i++) {
+        const formattedDay = String(i).padStart(2, "0");
+        dateKeys.push(`${year}-${formattedMonth}-${formattedDay}`);
       }
-    });
 
-    const avgHoursDay = daysFilled > 0 ? Number((totalHoursMonth / daysFilled).toFixed(1)) : 0;
-    let indicatorSpread = "Belum Ada Data";
-    const maxD = Math.max(dist.veryBad, dist.bad, dist.fair, dist.good);
-    if (maxD > 0) {
-      if (dist.good === maxD) indicatorSpread = "Fokus & Deep Work Dominan";
-      else if (dist.fair === maxD) indicatorSpread = "Cukup Produktif";
-      else if (dist.bad === maxD) indicatorSpread = "Kurang Produktif";
-      else if (dist.veryBad === maxD) indicatorSpread = "Sangat Kurang Produktif";
+      dateKeys.forEach((key) => {
+        const hrs = daysData[key]?.hours || 0;
+        if (hrs > 0) {
+          totalHoursMonth += hrs;
+          daysFilled++;
+          if (hrs <= config.thresholdVeryBad) dist.veryBad++;
+          else if (hrs <= config.thresholdBad) dist.bad++;
+          else if (hrs <= config.thresholdFair) dist.fair++;
+          else dist.good++;
+        }
+      });
+
+      const avgHoursDay = daysFilled > 0 ? Number((totalHoursMonth / daysFilled).toFixed(1)) : 0;
+      let indicatorSpread = "Belum Ada Data";
+      const maxD = Math.max(dist.veryBad, dist.bad, dist.fair, dist.good);
+      if (maxD > 0) {
+        if (dist.good === maxD) indicatorSpread = "Fokus & Deep Work Dominan";
+        else if (dist.fair === maxD) indicatorSpread = "Cukup Produktif";
+        else if (dist.bad === maxD) indicatorSpread = "Kurang Produktif";
+        else if (dist.veryBad === maxD) indicatorSpread = "Sangat Kurang Produktif";
+      }
+
+      const summaryData = {
+        totalHoursMonth: Number(totalHoursMonth.toFixed(1)),
+        avgHoursDay,
+        daysFilled,
+        indicatorSpread
+      };
+
+      const yearMonthStr = `${year}-${formattedMonth}`;
+      
+      // Save to monthly history document (e.g. 2026-05)
+      await saveProductivitySummary(userId, summaryData, yearMonthStr);
+      
+      // If this is the current real-world month, also keep the active 'productivity' document in sync
+      const today = new Date();
+      if (year === today.getFullYear() && month === today.getMonth()) {
+        await saveProductivitySummary(userId, summaryData, "productivity");
+      }
+    };
+
+    if (targetYear !== undefined && targetMonth !== undefined) {
+      await calculateForMonth(targetYear, targetMonth);
+    } else {
+      // Find all unique months in daysData to calculate summaries for each month
+      const monthsToCalculate = new Set<string>();
+      Object.keys(daysData).forEach((key) => {
+        const match = key.match(/^(\d{4})-(\d{2})-\d{2}$/);
+        if (match) {
+          monthsToCalculate.add(`${match[1]}-${match[2]}`);
+        }
+      });
+
+      // Default to current month if no data exists
+      if (monthsToCalculate.size === 0) {
+        const today = new Date();
+        const yStr = String(today.getFullYear());
+        const mStr = String(today.getMonth() + 1).padStart(2, "0");
+        monthsToCalculate.add(`${yStr}-${mStr}`);
+      }
+
+      for (const ym of monthsToCalculate) {
+        const [yStr, mStr] = ym.split("-");
+        const y = parseInt(yStr, 10);
+        const m = parseInt(mStr, 10) - 1; // 0-indexed
+        await calculateForMonth(y, m);
+      }
     }
-
-    await saveProductivitySummary(userId, {
-      totalHoursMonth: Number(totalHoursMonth.toFixed(1)),
-      avgHoursDay,
-      daysFilled,
-      indicatorSpread
-    });
   } catch (error) {
     console.error("Failed to calculate and save summary", error);
   }

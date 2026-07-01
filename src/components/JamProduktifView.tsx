@@ -148,7 +148,7 @@ export default function JamProduktifView({
         ...daysData,
         [dateKey]: updatedRecord
       };
-      await calculateAndSaveSummary(userId, mergedDaysData, config);
+      await calculateAndSaveSummary(userId, mergedDaysData, config, selectedYear, selectedMonth);
 
       onDataUpdated(dateKey, resolvedHours);
 
