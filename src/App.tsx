@@ -186,7 +186,11 @@ export default function App() {
                 GB - Productivity
               </h1>
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold leading-none border bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400">
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold leading-none border ${
+                  isDark
+                    ? "bg-emerald-950/20 border-emerald-900/30 text-emerald-400"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                }`}>
                   <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
                   Firebase Online
                 </span>
@@ -195,7 +199,9 @@ export default function App() {
           </div>
 
           {/* Tab Selection Navigation bar */}
-          <nav className="flex items-center bg-slate-100/70 dark:bg-slate-855 rounded-xl p-1 gap-1">
+          <nav className={`flex items-center rounded-xl p-1 gap-1 transition-colors duration-200 ${
+            isDark ? "bg-slate-800/90" : "bg-slate-100/70"
+          }`}>
             <button
               onClick={() => setActiveTab("productive")}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${

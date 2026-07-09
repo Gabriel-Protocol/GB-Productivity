@@ -374,14 +374,20 @@ export default function ExportView({
     fileReader.readAsText(file);
   };
 
+  const isDark = config.theme === "dark";
+
   return (
     <div className="space-y-6" id="export-data-view">
       {status && (
         <div
           className={`p-4 rounded-xl text-xs font-semibold border flex gap-3 items-center ${
             status.type === "success"
-              ? "bg-teal-50 border-teal-100 text-teal-800"
-              : "bg-rose-50 border-rose-100 text-brand-wine"
+              ? isDark
+                ? "bg-teal-950/30 border-teal-900/45 text-teal-300"
+                : "bg-teal-50 border-teal-100 text-teal-800"
+              : isDark
+                ? "bg-rose-950/30 border-rose-900/45 text-rose-300"
+                : "bg-rose-50 border-rose-100 text-brand-wine"
           }`}
         >
           <Sparkles className="w-5 h-5 shrink-0" />
@@ -391,11 +397,13 @@ export default function ExportView({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* LEFT COMPONENT: Export Form Controls */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+        <div className={`lg:col-span-5 p-6 rounded-2xl border shadow-sm space-y-6 ${
+          isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+        }`}>
+          <div className={`flex items-center gap-2 pb-3 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
             <FileText className="w-5 h-5 text-brand-teal animate-pulse" />
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Ekspor Laporan & Cadangan</h3>
+              <h3 className={`font-bold text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>Ekspor Laporan & Cadangan</h3>
               <p className="text-[10px] text-slate-400">Pilih rentang data, tulis evaluasi, atau unduh cadangan harian</p>
             </div>
           </div>
@@ -411,6 +419,8 @@ export default function ExportView({
                 className={`p-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 outline-none cursor-pointer ${
                   includeProductive
                     ? "border-brand-teal bg-brand-teal/5 text-brand-teal font-extrabold"
+                    : isDark
+                    ? "border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400"
                     : "border-slate-200 text-slate-400 hover:border-slate-300"
                 }`}
               >
@@ -423,6 +433,8 @@ export default function ExportView({
                 className={`p-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 outline-none cursor-pointer ${
                   includeHabits
                     ? "border-brand-teal bg-brand-teal/5 text-brand-teal font-extrabold"
+                    : isDark
+                    ? "border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400"
                     : "border-slate-200 text-slate-400 hover:border-slate-300"
                 }`}
               >
@@ -442,12 +454,16 @@ export default function ExportView({
               value={evaluationText}
               onChange={(e) => setEvaluationText(e.target.value)}
               rows={5}
-              className="w-full text-xs p-3 text-slate-700 placeholder-slate-400 border border-slate-200 bg-slate-50 focus:bg-white rounded-xl focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/15 outline-none resize-none leading-relaxed"
+              className={`w-full text-xs p-3 rounded-xl outline-none resize-none leading-relaxed transition ${
+                isDark
+                  ? "bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/15"
+                  : "bg-slate-50 border border-slate-200 text-slate-700 placeholder-slate-400 focus:bg-white focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/15"
+              }`}
             />
           </div>
 
           {/* Formatted File Download Buttons */}
-          <div className="space-y-3 pt-3 border-t border-slate-100">
+          <div className={`space-y-3 pt-3 border-t ${isDark ? "border-slate-800" : "border-slate-100"}`}>
             <label className="text-xs font-bold text-slate-500 block uppercase tracking-wider">
               3. Unduh Laporan:
             </label>
@@ -475,20 +491,24 @@ export default function ExportView({
 
         {/* RIGHT COMPONENT: JSON Backup & Safe Recovery */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+          <div className={`p-6 rounded-2xl border shadow-sm space-y-5 ${
+            isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+          }`}>
+            <div className={`flex items-center gap-2 pb-3 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
               <FileJson className="w-5 h-5 text-indigo-500" />
               <div>
-                <h3 className="font-bold text-slate-800 text-sm">Full Backup Sistem & Restore (.JSON)</h3>
+                <h3 className={`font-bold text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>Full Backup Sistem & Restore (.JSON)</h3>
                 <p className="text-[10px] text-slate-400">Pindahkan seluruh riwayat catatan dan pengaturan habits Anda secara manual ke perangkat lain</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Export JSON backup button */}
-              <div className="p-4 border border-indigo-50/60 bg-indigo-50/20 rounded-xl space-y-3">
-                <h4 className="text-xs font-bold text-slate-700">Ekspor File Cadangan</h4>
-                <p className="text-[11px] text-slate-500 leading-normal">Unduh seluruh konfigurasi rules targets, dan log days data ke satu file text JSON.</p>
+              <div className={`p-4 border rounded-xl space-y-3 ${
+                isDark ? "border-indigo-950/40 bg-indigo-950/10" : "border-indigo-50/60 bg-indigo-50/20"
+              }`}>
+                <h4 className={`text-xs font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>Ekspor File Cadangan</h4>
+                <p className={`text-[11px] leading-normal ${isDark ? "text-slate-400" : "text-slate-500"}`}>Unduh seluruh konfigurasi rules targets, dan log days data ke satu file text JSON.</p>
                 <button
                   onClick={handleExportJSON}
                   className="py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition cursor-pointer flex items-center gap-1.5"
@@ -499,12 +519,18 @@ export default function ExportView({
               </div>
 
               {/* Import recovery JSON backup form */}
-              <div className="p-4 border border-slate-200/80 bg-slate-50/40 rounded-xl space-y-3 relative overflow-hidden">
-                <h4 className="text-xs font-bold text-slate-700">Impor & Pulihkan Data</h4>
-                <p className="text-[11px] text-slate-500 leading-normal">Pilih file backup (.JSON) untuk memulihkan seluruh data dan menyinkronkannya kembali ke cloud.</p>
+              <div className={`p-4 border rounded-xl space-y-3 relative overflow-hidden ${
+                isDark ? "border-slate-800 bg-slate-950/30" : "border-slate-200/80 bg-slate-50/40"
+              }`}>
+                <h4 className={`text-xs font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>Impor & Pulihkan Data</h4>
+                <p className={`text-[11px] leading-normal ${isDark ? "text-slate-400" : "text-slate-500"}`}>Pilih file backup (.JSON) untuk memulihkan seluruh data dan menyinkronkannya kembali ke cloud.</p>
                 
                 <div className="mt-1">
-                  <label className="inline-flex items-center py-2 px-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-350 rounded-lg text-xs font-bold cursor-pointer transition gap-1.5 shadow-sm">
+                  <label className={`inline-flex items-center py-2 px-3.5 rounded-lg text-xs font-bold cursor-pointer transition gap-1.5 shadow-sm border ${
+                    isDark
+                      ? "bg-slate-900 border-slate-800 hover:bg-slate-850 text-slate-200 hover:border-slate-700"
+                      : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-350"
+                  }`}>
                     {importing ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-teal" />
@@ -530,18 +556,28 @@ export default function ExportView({
           </div>
 
           {/* Quick interactive Preview Panel */}
-          <div className="bg-slate-50/60 p-5 border border-slate-100 rounded-2xl space-y-3">
+          <div className={`p-5 border rounded-2xl space-y-3 ${
+            isDark ? "bg-slate-900/40 border-slate-850" : "bg-slate-50/60 border-slate-100"
+          }`}>
             <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
               Pratinjau Hasil Laporan Tercetak:
             </span>
-            <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-inner max-h-[300px] overflow-y-auto space-y-3 relative text-[11px] text-slate-600">
-              <div className="border-b border-slate-100 pb-2 flex justify-between items-center bg-slate-50/20 px-2 rounded">
-                <span className="font-bold text-slate-700">GP - PRODUCTIVITY REPORT SUMMARY</span>
+            <div className={`p-4 rounded-xl shadow-inner max-h-[300px] overflow-y-auto space-y-3 relative text-[11px] border ${
+              isDark
+                ? "bg-slate-950 border-slate-850 text-slate-300"
+                : "bg-white border-slate-150 text-slate-600"
+            }`}>
+              <div className={`pb-2 flex justify-between items-center bg-slate-50/20 px-2 rounded border-b ${
+                isDark ? "border-slate-800" : "border-slate-100"
+              }`}>
+                <span className={`font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>GP - PRODUCTIVITY REPORT SUMMARY</span>
                 <span className="text-[8px] font-mono text-slate-450">TAMPILAN DRAUGHT</span>
               </div>
 
               {evaluationText.trim() ? (
-                <div className="p-2.5 bg-slate-50 rounded italic border-l-2 border-brand-teal">
+                <div className={`p-2.5 rounded italic border-l-2 border-brand-teal ${
+                  isDark ? "bg-slate-900" : "bg-slate-50"
+                }`}>
                   "{evaluationText}"
                 </div>
               ) : (
@@ -551,14 +587,16 @@ export default function ExportView({
               )}
 
               <div className="space-y-1">
-                <span className="font-bold text-slate-700 block">Riwayat Aktivitas Harian:</span>
-                <div className="border border-slate-100 rounded overflow-hidden">
-                  <div className="grid grid-cols-3 bg-slate-100/55 p-1.5 font-bold text-[10px] text-slate-500">
+                <span className={`font-bold block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Riwayat Aktivitas Harian:</span>
+                <div className={`border rounded overflow-hidden ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                  <div className={`grid grid-cols-3 p-1.5 font-bold text-[10px] ${
+                    isDark ? "bg-slate-900/60 text-slate-400" : "bg-slate-100/55 text-slate-500"
+                  }`}>
                     <div>Tanggal</div>
                     <div>Jam Produktif</div>
                     <div>Habits</div>
                   </div>
-                  <div className="divide-y divide-slate-100">
+                  <div className={`divide-y ${isDark ? "divide-slate-800" : "divide-slate-100"}`}>
                     {Object.keys(daysData).length === 0 ? (
                       <div className="p-2 text-center text-slate-400">Belum ada aktivitas terekam</div>
                     ) : (
