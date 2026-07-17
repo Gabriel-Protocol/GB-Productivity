@@ -395,20 +395,56 @@ export default function JamProduktifView({
             // Format date text to be highly friendly Indonesian: "Kamis, 18 Juni 2026"
             const dayDateObj = new Date(selectedYear, selectedMonth, dayNumber);
             const dayNameIndo = dayDateObj.toLocaleDateString("id-ID", { weekday: "long" });
+            const dayOfWeek = dayDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
             return (
               <div
                 key={dateKey}
-                className={`p-4 sm:px-6 transition duration-150 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isDark ? "hover:bg-slate-950/20" : "hover:bg-slate-50/75"}`}
+                className={`p-4 sm:px-6 transition duration-150 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
+                  isWeekend
+                    ? isDark
+                      ? "bg-rose-950/5 hover:bg-rose-950/10"
+                      : "bg-rose-50/25 hover:bg-rose-50/45"
+                    : isDark
+                      ? "hover:bg-slate-950/20"
+                      : "hover:bg-slate-50/75"
+                }`}
               >
                 {/* Date string column */}
                 <div className="flex items-center gap-4 min-w-[140px]">
-                  <div className={`w-10 h-10 border rounded-xl flex flex-col items-center justify-center font-bold text-xs ${isDark ? "bg-slate-950/40 border-slate-800 text-slate-300" : "bg-slate-50 border-slate-100 text-slate-600"}`}>
-                    <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">TGL</span>
-                    <span className={`leading-none ${isDark ? "text-slate-100" : "text-slate-700"}`}>{dayNumber}</span>
+                  <div className={`w-10 h-10 border rounded-xl flex flex-col items-center justify-center font-bold text-xs ${
+                    isWeekend
+                      ? isDark
+                        ? "bg-rose-950/25 border-rose-900/30"
+                        : "bg-rose-50 border-rose-100"
+                      : isDark
+                        ? "bg-slate-950/40 border-slate-800"
+                        : "bg-slate-50 border-slate-100"
+                  }`}>
+                    <span className={`text-[8px] uppercase font-bold tracking-wider ${
+                      isWeekend 
+                        ? isDark 
+                          ? "text-rose-500/50" 
+                          : "text-rose-400" 
+                        : "text-slate-400"
+                    }`}>
+                      {isWeekend ? "LBR" : "TGL"}
+                    </span>
+                    <span className={`leading-none font-extrabold ${
+                      isWeekend
+                        ? isDark
+                          ? "text-rose-200"
+                          : "text-rose-950"
+                        : isDark
+                          ? "text-slate-100"
+                          : "text-slate-700"
+                    }`}>{dayNumber}</span>
                   </div>
                   <div>
-                    <span className="text-xs font-semibold text-slate-400 block tracking-wider uppercase">
+                    <span className={`text-xs font-semibold block tracking-wider uppercase ${
+                      isWeekend ? "text-rose-500 dark:text-rose-400 font-bold" : "text-slate-400"
+                    }`}>
                       {dayNameIndo}
                     </span>
                     <span className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>

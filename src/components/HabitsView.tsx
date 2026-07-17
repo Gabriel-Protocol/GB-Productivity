@@ -169,12 +169,13 @@ export default function HabitsView({
   const renderActiveDateFriendly = () => {
     const parts = activeDateStr.split("-");
     const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    return d.toLocaleDateString("id-ID", {
+    const dayNameStr = d.toLocaleDateString("id-ID", {
       weekday: "long",
       day: "numeric",
       month: "long",
       year: "numeric"
     });
+    return dayNameStr;
   };
 
   // Calculate current active streak on any habit
@@ -249,10 +250,18 @@ export default function HabitsView({
 
           <div className="p-4 sm:p-5">
             {/* Weekdays Row */}
-            <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">
-              {WEEKDAY_NAMES.map(name => (
-                <div key={name}>{name}</div>
-              ))}
+            <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-extrabold uppercase tracking-widest mb-3">
+              {WEEKDAY_NAMES.map((name, idx) => {
+                const isWeekend = idx === 0 || idx === 6;
+                return (
+                  <div
+                    key={name}
+                    className={isWeekend ? "text-rose-500 dark:text-rose-400 font-bold" : "text-slate-400"}
+                  >
+                    {name}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Dates Grid */}
@@ -267,6 +276,10 @@ export default function HabitsView({
                 const fullDateKey = `${selectedYear}-${monthStr}-${dayStr}`;
 
                 const isSelected = activeDateStr === fullDateKey;
+
+                const dayDateObj = new Date(selectedYear, selectedMonth, day);
+                const dayOfWeek = dayDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 // Group color completions for this specific cell (strictly using active settings)
                 const colorDetails = activeHabitsConfig.map(g => {
@@ -293,8 +306,12 @@ export default function HabitsView({
                           ? "border-rose-500 bg-rose-950/30 text-rose-100 ring-1 ring-rose-500/20 shadow-inner"
                           : "border-brand-wine bg-brand-wine/5 shadow-inner ring-1 ring-brand-wine/25 text-brand-wine font-extrabold"
                         : isDark
-                          ? "border-slate-800 bg-slate-950/40 hover:border-brand-teal/40 text-slate-300"
-                          : "border-slate-100 bg-white hover:border-brand-teal/50 text-slate-700"
+                          ? isWeekend
+                            ? "border-rose-950/40 bg-rose-950/10 hover:border-brand-teal/40 text-slate-300"
+                            : "border-slate-800 bg-slate-950/40 hover:border-brand-teal/40 text-slate-300"
+                          : isWeekend
+                            ? "border-rose-100 bg-rose-50/20 hover:border-brand-teal/50 text-slate-700"
+                            : "border-slate-100 bg-white hover:border-brand-teal/50 text-slate-700"
                     }`}
                   >
                     {/* Top Row inside cell: Day number and total completed count badge */}
@@ -302,7 +319,9 @@ export default function HabitsView({
                       <span className={`text-[11px] font-bold ${
                         isSelected 
                           ? isDark ? "text-rose-450 font-extrabold" : "text-brand-wine font-extrabold" 
-                          : isDark ? "text-slate-300" : "text-slate-700"
+                          : isWeekend
+                            ? "text-rose-500 dark:text-rose-400 font-extrabold"
+                            : isDark ? "text-slate-300" : "text-slate-700"
                       }`}>
                         {day}
                       </span>
