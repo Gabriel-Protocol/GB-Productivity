@@ -17,6 +17,7 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
+  ArrowUpDown,
   CheckCircle2,
   Circle,
   Sparkles,
@@ -24,7 +25,9 @@ import {
   Layers,
   RotateCcw,
   X,
-  Check
+  Check,
+  SlidersHorizontal,
+  Command
 } from "lucide-react";
 
 interface TimeBoxViewProps {
@@ -34,10 +37,13 @@ interface TimeBoxViewProps {
   onDataUpdated: (dateId: string, tasks: TimeBoxTask[], score: string | number) => void;
 }
 
+export type TimeBoxSortMode = "time" | "priority" | "duration" | "manual";
+
 const PRIORITY_CONFIG: Record<
   TimeBoxPriority,
   {
     label: string;
+    rank: number;
     badgeBgLight: string;
     badgeTextLight: string;
     badgeBgDark: string;
@@ -49,6 +55,7 @@ const PRIORITY_CONFIG: Record<
 > = {
   do: {
     label: "Do",
+    rank: 1,
     badgeBgLight: "bg-rose-50",
     badgeTextLight: "text-rose-700",
     badgeBgDark: "bg-rose-950/40",
@@ -59,6 +66,7 @@ const PRIORITY_CONFIG: Record<
   },
   decide: {
     label: "Decide",
+    rank: 2,
     badgeBgLight: "bg-teal-50",
     badgeTextLight: "text-teal-700",
     badgeBgDark: "bg-teal-950/40",
@@ -69,6 +77,7 @@ const PRIORITY_CONFIG: Record<
   },
   delegate: {
     label: "Delegate",
+    rank: 3,
     badgeBgLight: "bg-amber-50",
     badgeTextLight: "text-amber-700",
     badgeBgDark: "bg-amber-950/40",
@@ -79,6 +88,7 @@ const PRIORITY_CONFIG: Record<
   },
   delete: {
     label: "Delete",
+    rank: 4,
     badgeBgLight: "bg-slate-100",
     badgeTextLight: "text-slate-700",
     badgeBgDark: "bg-slate-800",
@@ -124,24 +134,75 @@ function getMonday(d: Date): Date {
   return monday;
 }
 
-// Calculate duration between startTime and endTime in human readable format
-function calculateDuration(start?: string, end?: string): string | null {
-  if (!start || !end) return null;
+// Calculate duration between startTime and endTime in minutes
+function getDurationMinutes(start?: string, end?: string): number {
+  if (!start || !end) return 0;
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
-  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return null;
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return 0;
+  const diff = eh * 60 + em - (sh * 60 + sm);
+  return diff > 0 ? diff : 0;
+}
 
-  const startMinutes = sh * 60 + sm;
-  const endMinutes = eh * 60 + em;
-  const diff = endMinutes - startMinutes;
-
-  if (diff <= 0) return null;
-  const hours = Math.floor(diff / 60);
-  const mins = diff % 60;
+// Calculate duration string in human-readable format
+function calculateDuration(start?: string, end?: string): string | null {
+  const minsTotal = getDurationMinutes(start, end);
+  if (minsTotal <= 0) return null;
+  const hours = Math.floor(minsTotal / 60);
+  const mins = minsTotal % 60;
 
   if (hours > 0 && mins > 0) return `${hours}j ${mins}m`;
   if (hours > 0) return `${hours} jam`;
   return `${mins} mnt`;
+}
+
+// Get minutes from 00:00 for sorting
+function getStartMinutes(start?: string): number {
+  if (!start || !start.includes(":")) return 9999;
+  const [sh, sm] = start.split(":").map(Number);
+  if (isNaN(sh) || isNaN(sm)) return 9999;
+  return sh * 60 + sm;
+}
+
+// Sorter helper for tasks based on selected mode
+function sortTasksList(tasks: TimeBoxTask[], mode: TimeBoxSortMode): TimeBoxTask[] {
+  const list = [...tasks];
+
+  if (mode === "time") {
+    return list.sort((a, b) => {
+      const timeA = getStartMinutes(a.startTime);
+      const timeB = getStartMinutes(b.startTime);
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.order || 0) - (b.order || 0);
+    });
+  }
+
+  if (mode === "priority") {
+    return list.sort((a, b) => {
+      const rankA = PRIORITY_CONFIG[a.priority]?.rank || 99;
+      const rankB = PRIORITY_CONFIG[b.priority]?.rank || 99;
+      if (rankA !== rankB) return rankA - rankB;
+      const timeA = getStartMinutes(a.startTime);
+      const timeB = getStartMinutes(b.startTime);
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.order || 0) - (b.order || 0);
+    });
+  }
+
+  if (mode === "duration") {
+    return list.sort((a, b) => {
+      const durA = getDurationMinutes(a.startTime, a.endTime);
+      const durB = getDurationMinutes(b.startTime, b.endTime);
+      if (durA !== durB) return durB - durA; // Longest duration first
+      const timeA = getStartMinutes(a.startTime);
+      const timeB = getStartMinutes(b.startTime);
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.order || 0) - (b.order || 0);
+    });
+  }
+
+  // mode === "manual"
+  return list.sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
 interface ActiveTimePickerState {
@@ -160,6 +221,23 @@ export default function TimeBoxView({
 }: TimeBoxViewProps) {
   // Current anchor date (used to calculate the active 7-day week)
   const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
+
+  // Sorting Mode State - DEFAULT: "time" (Waktu)
+  const [sortMode, setSortMode] = useState<TimeBoxSortMode>(() => {
+    try {
+      const saved = localStorage.getItem("gb_timebox_sort_mode");
+      if (saved === "time" || saved === "priority" || saved === "duration" || saved === "manual") {
+        return saved;
+      }
+      return "time"; // Default by time
+    } catch {
+      return "time";
+    }
+  });
+
+  // Selected Day & Selected Task for Keyboard Navigation & Ctrl+C / Ctrl+V
+  const [selectedDateKey, setSelectedDateKey] = useState<string>(() => formatDateKey(new Date()));
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Individual panel widths and heights stored per dateKey or default
   const [panelWidths, setPanelWidths] = useState<Record<string, number>>(() => {
@@ -213,6 +291,25 @@ export default function TimeBoxView({
     setTimeout(() => {
       setToastMessage((current) => (current === msg ? null : current));
     }, 2800);
+  };
+
+  // Change sort mode and persist
+  const handleSetSortMode = (mode: TimeBoxSortMode) => {
+    setSortMode(mode);
+    try {
+      localStorage.setItem("gb_timebox_sort_mode", mode);
+    } catch {
+      // ignore
+    }
+    const label =
+      mode === "time"
+        ? "Waktu (00:00 - 23:59)"
+        : mode === "priority"
+        ? "Prioritas (Do → Decide → Delegate → Delete)"
+        : mode === "duration"
+        ? "Lama Durasi (Terpanjang → Terpendek)"
+        : "Manual (Urutan Panah)";
+    showToast(`Disortir berdasarkan: ${label}`);
   };
 
   // Drag Resizer Handlers per Panel (Width / Height / Corner)
@@ -378,12 +475,22 @@ export default function TimeBoxView({
     setAnchorDate(new Date());
   };
 
-  // Retrieve tasks & score for a specific date
-  const getDayData = (dateKey: string) => {
+  // Retrieve raw tasks & score for a specific date
+  const getRawDayData = (dateKey: string) => {
     const rec = daysData[dateKey];
     return {
-      tasks: (rec?.timeboxTasks || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)),
+      tasks: (rec?.timeboxTasks || []).slice(),
       score: rec?.timeboxScore !== undefined ? rec.timeboxScore : ""
+    };
+  };
+
+  // Retrieve sorted tasks & score for a specific date
+  const getDayData = (dateKey: string) => {
+    const { tasks, score } = getRawDayData(dateKey);
+    const sorted = sortTasksList(tasks, sortMode);
+    return {
+      tasks: sorted,
+      score
     };
   };
 
@@ -397,6 +504,7 @@ export default function TimeBoxView({
 
   // TASK OPERATIONS
   const handleAddTask = (dateKey: string) => {
+    setSelectedDateKey(dateKey);
     const { tasks, score } = getDayData(dateKey);
     const newId = "tb_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
 
@@ -426,10 +534,13 @@ export default function TimeBoxView({
 
     const updatedTasks = [...tasks, newTask];
     updateAndSave(dateKey, updatedTasks, score);
+    setSelectedTaskId(newId);
   };
 
   const handleToggleTask = (dateKey: string, taskId: string) => {
-    const { tasks, score } = getDayData(dateKey);
+    setSelectedDateKey(dateKey);
+    setSelectedTaskId(taskId);
+    const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, completed: !t.completed } : t
     );
@@ -437,7 +548,7 @@ export default function TimeBoxView({
   };
 
   const handleUpdateTaskText = (dateKey: string, taskId: string, text: string) => {
-    const { tasks, score } = getDayData(dateKey);
+    const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, text } : t
     );
@@ -449,7 +560,9 @@ export default function TimeBoxView({
     taskId: string,
     priority: TimeBoxPriority
   ) => {
-    const { tasks, score } = getDayData(dateKey);
+    setSelectedDateKey(dateKey);
+    setSelectedTaskId(taskId);
+    const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, priority } : t
     );
@@ -462,7 +575,9 @@ export default function TimeBoxView({
     startTime: string,
     endTime: string
   ) => {
-    const { tasks, score } = getDayData(dateKey);
+    setSelectedDateKey(dateKey);
+    setSelectedTaskId(taskId);
+    const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, startTime, endTime } : t
     );
@@ -470,7 +585,7 @@ export default function TimeBoxView({
   };
 
   const handleDeleteTask = (dateKey: string, taskId: string) => {
-    const { tasks, score } = getDayData(dateKey);
+    const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks
       .filter((t) => t.id !== taskId)
       .map((t, idx) => ({ ...t, order: idx + 1 }));
@@ -478,10 +593,24 @@ export default function TimeBoxView({
     if (activeTimePicker?.taskId === taskId) {
       setActiveTimePicker(null);
     }
+    if (selectedTaskId === taskId) {
+      setSelectedTaskId(null);
+    }
     showToast("Tugas telah dihapus.");
   };
 
   const handleMoveTask = (dateKey: string, index: number, direction: "up" | "down") => {
+    setSelectedDateKey(dateKey);
+    // When moving tasks manually, auto-switch to manual mode if not already
+    if (sortMode !== "manual") {
+      setSortMode("manual");
+      try {
+        localStorage.setItem("gb_timebox_sort_mode", "manual");
+      } catch {
+        // ignore
+      }
+    }
+
     const { tasks, score } = getDayData(dateKey);
     if (direction === "up" && index === 0) return;
     if (direction === "down" && index === tasks.length - 1) return;
@@ -494,6 +623,7 @@ export default function TimeBoxView({
 
     const normalized = reordered.map((t, idx) => ({ ...t, order: idx + 1 }));
     updateAndSave(dateKey, normalized, score);
+    setSelectedTaskId(temp.id);
   };
 
   // COPY & PASTE OPERATIONS
@@ -502,10 +632,11 @@ export default function TimeBoxView({
       type: "single",
       tasks: [{ ...task, completed: false }]
     });
-    showToast(`Tugas "${task.text || 'Tugas'}" disalin ke clipboard!`);
+    showToast(`Tugas "${task.text || 'Tugas'}" disalin (Ctrl+C)!`);
   };
 
   const handleCopyDayTasks = (dateKey: string, dayName: string) => {
+    setSelectedDateKey(dateKey);
     const { tasks } = getDayData(dateKey);
     if (tasks.length === 0) {
       showToast("Tidak ada tugas pada hari ini untuk disalin.");
@@ -516,16 +647,17 @@ export default function TimeBoxView({
       tasks: tasks.map((t) => ({ ...t, completed: false })),
       sourceDateLabel: `${dayName} (${tasks.length} tugas)`
     });
-    showToast(`${tasks.length} tugas dari ${dayName} disalin!`);
+    showToast(`${tasks.length} tugas dari ${dayName} disalin (Ctrl+C)!`);
   };
 
   const handlePasteTasks = (targetDateKey: string) => {
+    setSelectedDateKey(targetDateKey);
     if (!clipboard || clipboard.tasks.length === 0) {
-      showToast("Clipboard masih kosong.");
+      showToast("Clipboard masih kosong. Salin tugas terlebih dahulu (Ctrl+C).");
       return;
     }
 
-    const { tasks: currentTasks, score } = getDayData(targetDateKey);
+    const { tasks: currentTasks, score } = getRawDayData(targetDateKey);
     const newPastedTasks: TimeBoxTask[] = clipboard.tasks.map((t, idx) => ({
       ...t,
       id: "tb_" + Date.now() + "_" + idx + "_" + Math.random().toString(36).substring(2, 6),
@@ -535,18 +667,91 @@ export default function TimeBoxView({
 
     const merged = [...currentTasks, ...newPastedTasks];
     updateAndSave(targetDateKey, merged, score);
-    showToast(`${newPastedTasks.length} tugas berhasil ditempel!`);
+    if (newPastedTasks.length > 0) {
+      setSelectedTaskId(newPastedTasks[0].id);
+    }
+    showToast(`${newPastedTasks.length} tugas berhasil ditempel (Ctrl+V)!`);
   };
+
+  // KEYBOARD SHORTCUTS LISTENER: Ctrl+C and Ctrl+V for selected task or selected day panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      if (!isCtrlOrCmd) {
+        if (e.key === "Escape") {
+          setSelectedTaskId(null);
+        }
+        return;
+      }
+
+      const activeEl = document.activeElement;
+      const isInputActive =
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          (activeEl as HTMLElement).isContentEditable);
+
+      // --- Handle Ctrl + C (Copy) ---
+      if (e.key === "c" || e.key === "C") {
+        // If user has highlighted characters inside an active input, let native browser copy text
+        const selectionText = window.getSelection()?.toString();
+        if (isInputActive && selectionText && selectionText.trim().length > 0) {
+          return;
+        }
+
+        // If a single task is selected
+        if (selectedTaskId && selectedDateKey) {
+          const { tasks } = getRawDayData(selectedDateKey);
+          const taskToCopy = tasks.find((t) => t.id === selectedTaskId);
+          if (taskToCopy) {
+            e.preventDefault();
+            handleCopySingleTask(taskToCopy);
+            return;
+          }
+        }
+
+        // If no task selected, but a day panel is active
+        if (selectedDateKey && !selectedTaskId) {
+          const dayObj = weekDays.find((d) => d.dateKey === selectedDateKey);
+          const dayName = dayObj ? dayObj.dayName : selectedDateKey;
+          const { tasks } = getDayData(selectedDateKey);
+          if (tasks.length > 0) {
+            e.preventDefault();
+            handleCopyDayTasks(selectedDateKey, dayName);
+          }
+        }
+      }
+
+      // --- Handle Ctrl + V (Paste) ---
+      if (e.key === "v" || e.key === "V") {
+        // If typing inside an active input field, let native browser paste text
+        if (isInputActive) {
+          return;
+        }
+
+        // If clipboard contains timebox tasks
+        if (clipboard && clipboard.tasks.length > 0) {
+          const targetDate = selectedDateKey || todayKey;
+          e.preventDefault();
+          handlePasteTasks(targetDate);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTaskId, selectedDateKey, clipboard, daysData, weekDays, todayKey]);
 
   // SCORE (NILAI) OPERATION
   const handleScoreChange = (dateKey: string, value: string) => {
-    const { tasks } = getDayData(dateKey);
+    const { tasks } = getRawDayData(dateKey);
     updateAndSave(dateKey, tasks, value);
   };
 
   // Clear completed tasks in a day
   const handleClearCompleted = (dateKey: string) => {
-    const { tasks, score } = getDayData(dateKey);
+    setSelectedDateKey(dateKey);
+    const { tasks, score } = getRawDayData(dateKey);
     const uncompleted = tasks
       .filter((t) => !t.completed)
       .map((t, idx) => ({ ...t, order: idx + 1 }));
@@ -562,7 +767,7 @@ export default function TimeBoxView({
     let validScores: number[] = [];
 
     weekDays.forEach(({ dateKey }) => {
-      const { tasks, score } = getDayData(dateKey);
+      const { tasks, score } = getRawDayData(dateKey);
       totalTasks += tasks.length;
       tasks.forEach((t) => {
         if (t.completed) completedTasks++;
@@ -602,13 +807,13 @@ export default function TimeBoxView({
         </div>
       )}
 
-      {/* Top Header & Week Navigation Controls */}
+      {/* Top Header & Controls */}
       <div
         className={`p-5 sm:p-6 rounded-2xl border shadow-sm transition-colors duration-200 ${
           isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
         }`}
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand-teal/10 text-brand-teal flex items-center justify-center">
               <Layers className="w-4 h-4" />
@@ -617,11 +822,42 @@ export default function TimeBoxView({
               <h2 className={`text-base sm:text-lg font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-800"}`}>
                 Time Box & To-Do Mingguan
               </h2>
+              <p className="text-xs text-slate-400 font-medium">
+                Pilih tugas/panel lalu gunakan shortcut <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-brand-teal border border-slate-300 dark:border-slate-700">Ctrl+C</kbd> & <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-brand-teal border border-slate-300 dark:border-slate-700">Ctrl+V</kbd>
+              </p>
             </div>
           </div>
 
-          {/* Navigation bar for week selection */}
-          <div className="flex items-center flex-wrap gap-2">
+          {/* Navigation and Sort Controls */}
+          <div className="flex items-center flex-wrap gap-2.5">
+            {/* Sort Mode Dropdown (Default: Waktu) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                <ArrowUpDown className="w-3 h-3 text-brand-teal" />
+                <span className="hidden sm:inline">Urutkan:</span>
+              </span>
+              <div className="relative inline-flex items-center">
+                <select
+                  value={sortMode}
+                  onChange={(e) => handleSetSortMode(e.target.value as TimeBoxSortMode)}
+                  className={`text-xs font-bold px-3 py-2 pr-7 rounded-xl border outline-none cursor-pointer transition appearance-none ${
+                    isDark
+                      ? "bg-slate-950/80 border-slate-800 text-brand-teal focus:border-brand-teal"
+                      : "bg-teal-50/60 border-teal-200 text-teal-800 focus:border-teal-400 shadow-2xs"
+                  }`}
+                  title="Pilih mode pengurutan tugas (Default: Waktu)"
+                >
+                  <option value="time">⏰ Waktu (00:00 - 23:59) - Default</option>
+                  <option value="priority">🎯 Prioritas (Do → Decide → Delegate → Delete)</option>
+                  <option value="duration">⏳ Lama Durasi (Terlama)</option>
+                  <option value="manual">↕️ Urutan Manual</option>
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-brand-teal">
+                  ▼
+                </span>
+              </div>
+            </div>
+
             {/* Week Navigation */}
             <div className="flex items-center gap-1">
               <button
@@ -638,7 +874,7 @@ export default function TimeBoxView({
 
               <button
                 onClick={handleCurrentWeek}
-                className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   isDark
                     ? "border-brand-teal/40 bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal"
                     : "border-brand-teal/30 bg-teal-50 hover:bg-teal-100 text-brand-teal"
@@ -663,7 +899,7 @@ export default function TimeBoxView({
 
             {/* Formatted Date Range Pill */}
             <div
-              className={`px-3.5 py-2 rounded-xl border text-xs font-bold tracking-wide ${
+              className={`px-3 py-2 rounded-xl border text-xs font-bold tracking-wide ${
                 isDark
                   ? "border-slate-800 bg-slate-950 text-slate-200"
                   : "border-slate-200 bg-slate-50 text-slate-700"
@@ -765,7 +1001,9 @@ export default function TimeBoxView({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Klik ikon tempel pada panel hari yang diinginkan.</span>
+              <span className="text-[11px] text-slate-400">
+                Pilih panel hari lalu tekan <kbd className="font-bold text-brand-teal">Ctrl+V</kbd> atau klik ikon tempel.
+              </span>
               <button
                 onClick={() => setClipboard(null)}
                 className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
@@ -787,19 +1025,25 @@ export default function TimeBoxView({
           const panelWidth = panelWidths[dateKey] || DEFAULT_PANEL_WIDTH;
           const panelHeight = panelHeights[dateKey] || DEFAULT_PANEL_HEIGHT;
           const isThisResizing = resizingDateKey === dateKey;
+          const isPanelSelected = selectedDateKey === dateKey;
 
           return (
             <div
               key={dateKey}
+              onClick={() => setSelectedDateKey(dateKey)}
               style={{
                 width: `${panelWidth}px`,
                 flex: `0 0 ${panelWidth}px`,
                 maxWidth: "100%",
                 minWidth: "260px"
               }}
-              className={`rounded-2xl border shadow-sm flex flex-col transition-shadow duration-150 relative select-text ${
+              className={`rounded-2xl border shadow-sm flex flex-col transition-all duration-150 relative select-text cursor-default ${
                 isThisResizing
                   ? "ring-2 ring-brand-teal shadow-lg"
+                  : isPanelSelected
+                  ? isDark
+                    ? "bg-slate-900 border-teal-500/80 ring-2 ring-teal-500/30 shadow-md"
+                    : "bg-white border-brand-teal ring-2 ring-teal-400/30 shadow-md"
                   : isToday
                   ? isDark
                     ? "bg-slate-900 border-brand-teal ring-1 ring-brand-teal/40"
@@ -942,11 +1186,14 @@ export default function TimeBoxView({
                   </div>
                 </div>
 
-                {/* Header Action Menu: Copy Day / Paste */}
+                {/* Header Action Menu: Copy Day / Paste / Active Indicator */}
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => handleCopyDayTasks(dateKey, dayName)}
-                    title="Salin Semua Tugas Hari Ini"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyDayTasks(dateKey, dayName);
+                    }}
+                    title="Salin Semua Tugas Hari Ini (Ctrl+C)"
                     className={`p-1.5 rounded-lg transition cursor-pointer text-slate-400 hover:text-brand-teal ${
                       isDark ? "hover:bg-slate-800" : "hover:bg-slate-200/60"
                     }`}
@@ -956,8 +1203,11 @@ export default function TimeBoxView({
 
                   {clipboard && (
                     <button
-                      onClick={() => handlePasteTasks(dateKey)}
-                      title="Tempel Tugas dari Clipboard"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePasteTasks(dateKey);
+                      }}
+                      title="Tempel Tugas dari Clipboard (Ctrl+V)"
                       className="p-1.5 rounded-lg transition cursor-pointer text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-950/30"
                     >
                       <ClipboardPaste className="w-3.5 h-3.5" />
@@ -1007,7 +1257,7 @@ export default function TimeBoxView({
                 </div>
               )}
 
-              {/* Task Items List (Tampilan Langsung & Praktis: Checkbox, Nama, Pindah, Salin, Hapus, Prioritas & Jam) */}
+              {/* Task Items List (Tampilan Langsung & Praktis dengan Dukungan Seleksi & Shortcut) */}
               <div
                 style={{ height: `${panelHeight}px` }}
                 className="p-3 space-y-2.5 overflow-y-auto min-h-[160px]"
@@ -1025,12 +1275,20 @@ export default function TimeBoxView({
                   tasks.map((task, idx) => {
                     const pConf = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.do;
                     const durationStr = calculateDuration(task.startTime, task.endTime);
+                    const isTaskSelected = selectedTaskId === task.id;
 
                     return (
                       <div
                         key={task.id}
-                        className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative ${
-                          task.completed
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDateKey(dateKey);
+                          setSelectedTaskId(task.id);
+                        }}
+                        className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative cursor-pointer ${
+                          isTaskSelected
+                            ? "ring-2 ring-brand-teal bg-teal-50/20 dark:bg-teal-950/30 border-brand-teal shadow-xs"
+                            : task.completed
                             ? isDark
                               ? "bg-slate-950/40 border-slate-800/60 opacity-60"
                               : "bg-slate-50/80 border-slate-100 opacity-65"
@@ -1043,7 +1301,10 @@ export default function TimeBoxView({
                         <div className="flex items-center gap-1.5">
                           {/* Checkbox button - Hijau Tosca */}
                           <button
-                            onClick={() => handleToggleTask(dateKey, task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTask(dateKey, task.id);
+                            }}
                             className="text-brand-teal hover:opacity-80 transition cursor-pointer shrink-0"
                             title={task.completed ? "Tandai Belum Selesai" : "Tandai Selesai"}
                           >
@@ -1059,6 +1320,10 @@ export default function TimeBoxView({
                             type="text"
                             placeholder="Nama tugas..."
                             value={task.text}
+                            onFocus={() => {
+                              setSelectedDateKey(dateKey);
+                              setSelectedTaskId(task.id);
+                            }}
                             onChange={(e) => handleUpdateTaskText(dateKey, task.id, e.target.value)}
                             className={`w-full text-xs font-semibold bg-transparent outline-none leading-normal min-w-0 ${
                               task.completed
@@ -1073,7 +1338,10 @@ export default function TimeBoxView({
                           <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               disabled={idx === 0}
-                              onClick={() => handleMoveTask(dateKey, idx, "up")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveTask(dateKey, idx, "up");
+                              }}
                               title="Pindahkan Ke Atas"
                               className={`p-1 rounded-md transition ${
                                 idx === 0
@@ -1087,7 +1355,10 @@ export default function TimeBoxView({
                             </button>
                             <button
                               disabled={idx === tasks.length - 1}
-                              onClick={() => handleMoveTask(dateKey, idx, "down")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveTask(dateKey, idx, "down");
+                              }}
                               title="Pindahkan Ke Bawah"
                               className={`p-1 rounded-md transition ${
                                 idx === tasks.length - 1
@@ -1101,10 +1372,15 @@ export default function TimeBoxView({
                             </button>
                           </div>
 
-                          {/* Action Button: Salin Tugas */}
+                          {/* Action Button: Salin Tugas (Ctrl+C) */}
                           <button
-                            onClick={() => handleCopySingleTask(task)}
-                            title="Salin Tugas Ini"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDateKey(dateKey);
+                              setSelectedTaskId(task.id);
+                              handleCopySingleTask(task);
+                            }}
+                            title="Salin Tugas Ini (Ctrl+C)"
                             className={`p-1 rounded-md transition cursor-pointer shrink-0 ${
                               isDark
                                 ? "text-slate-400 hover:text-brand-teal hover:bg-slate-800"
@@ -1116,7 +1392,10 @@ export default function TimeBoxView({
 
                           {/* Action Button: Hapus Tugas */}
                           <button
-                            onClick={() => handleDeleteTask(dateKey, task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTask(dateKey, task.id);
+                            }}
                             title="Hapus Tugas"
                             className={`p-1 rounded-md transition cursor-pointer shrink-0 ${
                               isDark
@@ -1159,15 +1438,18 @@ export default function TimeBoxView({
 
                           {/* Tombol Atur Waktu & Durasi */}
                           <button
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDateKey(dateKey);
+                              setSelectedTaskId(task.id);
                               setActiveTimePicker({
                                 dateKey,
                                 taskId: task.id,
                                 taskText: task.text,
                                 startTime: task.startTime || "08:00",
                                 endTime: task.endTime || "09:00"
-                              })
-                            }
+                              });
+                            }}
                             title="Klik untuk mengatur jam & durasi"
                             className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-left cursor-pointer transition font-medium ${
                               task.startTime || task.endTime
@@ -1198,12 +1480,15 @@ export default function TimeBoxView({
                 )}
               </div>
 
-              {/* Bottom Card Actions: Hanya 1 Tombol Tambah Tugas di Bawah */}
+              {/* Bottom Card Actions: Tombol Tambah Tugas */}
               <div className={`p-3 border-t flex items-center justify-between gap-2 ${
                 isDark ? "border-slate-800 bg-slate-950/30" : "border-slate-100 bg-slate-50/50"
               }`}>
                 <button
-                  onClick={() => handleAddTask(dateKey)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddTask(dateKey);
+                  }}
                   className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
                     isDark
                       ? "border-slate-800 bg-slate-900 hover:bg-slate-850 text-brand-teal hover:border-brand-teal/40"
@@ -1216,7 +1501,10 @@ export default function TimeBoxView({
 
                 {completedCount > 0 && (
                   <button
-                    onClick={() => handleClearCompleted(dateKey)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearCompleted(dateKey);
+                    }}
                     title="Bersihkan tugas yang selesai"
                     className={`p-2 rounded-xl border text-xs text-slate-400 hover:text-rose-500 transition cursor-pointer ${
                       isDark ? "border-slate-800 bg-slate-900 hover:bg-rose-950/20" : "border-slate-200 bg-white hover:bg-rose-50"
