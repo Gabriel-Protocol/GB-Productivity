@@ -56,45 +56,45 @@ const PRIORITY_CONFIG: Record<
   do: {
     label: "Do",
     rank: 1,
-    badgeBgLight: "bg-rose-50",
+    badgeBgLight: "bg-rose-100/90",
     badgeTextLight: "text-rose-700",
-    badgeBgDark: "bg-rose-950/40",
-    badgeTextDark: "text-rose-300",
-    borderLight: "border-rose-200",
-    borderDark: "border-rose-900/50",
+    badgeBgDark: "bg-rose-900/60",
+    badgeTextDark: "text-rose-200",
+    borderLight: "border-rose-300",
+    borderDark: "border-rose-700",
     dotColor: "bg-rose-500"
   },
   decide: {
     label: "Decide",
     rank: 2,
-    badgeBgLight: "bg-teal-50",
-    badgeTextLight: "text-teal-700",
-    badgeBgDark: "bg-teal-950/40",
-    badgeTextDark: "text-teal-300",
-    borderLight: "border-teal-200",
-    borderDark: "border-teal-900/50",
+    badgeBgLight: "bg-teal-100/90",
+    badgeTextLight: "text-teal-800",
+    badgeBgDark: "bg-teal-900/60",
+    badgeTextDark: "text-teal-200",
+    borderLight: "border-teal-300",
+    borderDark: "border-teal-700",
     dotColor: "bg-teal-500"
   },
   delegate: {
     label: "Delegate",
     rank: 3,
-    badgeBgLight: "bg-amber-50",
-    badgeTextLight: "text-amber-700",
-    badgeBgDark: "bg-amber-950/40",
-    badgeTextDark: "text-amber-300",
-    borderLight: "border-amber-200",
-    borderDark: "border-amber-900/50",
+    badgeBgLight: "bg-amber-100/90",
+    badgeTextLight: "text-amber-800",
+    badgeBgDark: "bg-amber-900/60",
+    badgeTextDark: "text-amber-200",
+    borderLight: "border-amber-300",
+    borderDark: "border-amber-700",
     dotColor: "bg-amber-500"
   },
   delete: {
     label: "Delete",
     rank: 4,
-    badgeBgLight: "bg-slate-100",
-    badgeTextLight: "text-slate-700",
-    badgeBgDark: "bg-slate-800",
-    badgeTextDark: "text-slate-300",
-    borderLight: "border-slate-200",
-    borderDark: "border-slate-700",
+    badgeBgLight: "bg-slate-200/90",
+    badgeTextLight: "text-slate-800",
+    badgeBgDark: "bg-slate-800/90",
+    badgeTextDark: "text-slate-200",
+    borderLight: "border-slate-300",
+    borderDark: "border-slate-600",
     dotColor: "bg-slate-400"
   }
 };
@@ -303,12 +303,12 @@ export default function TimeBoxView({
     }
     const label =
       mode === "time"
-        ? "Waktu (00:00 - 23:59)"
+        ? "Waktu"
         : mode === "priority"
-        ? "Prioritas (Do → Decide → Delegate → Delete)"
+        ? "Prioritas"
         : mode === "duration"
-        ? "Lama Durasi (Terpanjang → Terpendek)"
-        : "Manual (Urutan Panah)";
+        ? "Lama Durasi"
+        : "Urutan Manual";
     showToast(`Disortir berdasarkan: ${label}`);
   };
 
@@ -820,11 +820,8 @@ export default function TimeBoxView({
             </div>
             <div>
               <h2 className={`text-base sm:text-lg font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-800"}`}>
-                Time Box & To-Do Mingguan
+                Time Box
               </h2>
-              <p className="text-xs text-slate-400 font-medium">
-                Pilih tugas/panel lalu gunakan shortcut <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-brand-teal border border-slate-300 dark:border-slate-700">Ctrl+C</kbd> & <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-brand-teal border border-slate-300 dark:border-slate-700">Ctrl+V</kbd>
-              </p>
             </div>
           </div>
 
@@ -833,26 +830,26 @@ export default function TimeBoxView({
             {/* Sort Mode Dropdown (Default: Waktu) */}
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                <ArrowUpDown className="w-3 h-3 text-brand-teal" />
+                <ArrowUpDown className="w-3 h-3 text-teal-500" />
                 <span className="hidden sm:inline">Urutkan:</span>
               </span>
               <div className="relative inline-flex items-center">
                 <select
                   value={sortMode}
                   onChange={(e) => handleSetSortMode(e.target.value as TimeBoxSortMode)}
-                  className={`text-xs font-bold px-3 py-2 pr-7 rounded-xl border outline-none cursor-pointer transition appearance-none ${
+                  className={`text-xs font-bold px-2.5 py-1.5 pr-6 rounded-xl border outline-none cursor-pointer transition appearance-none ${
                     isDark
-                      ? "bg-slate-950/80 border-slate-800 text-brand-teal focus:border-brand-teal"
-                      : "bg-teal-50/60 border-teal-200 text-teal-800 focus:border-teal-400 shadow-2xs"
+                      ? "bg-teal-950/80 border-teal-500/50 text-teal-300 focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
+                      : "bg-teal-50 border-teal-300 text-teal-700 hover:border-teal-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 shadow-2xs"
                   }`}
                   title="Pilih mode pengurutan tugas (Default: Waktu)"
                 >
-                  <option value="time">⏰ Waktu (00:00 - 23:59) - Default</option>
-                  <option value="priority">🎯 Prioritas (Do → Decide → Delegate → Delete)</option>
-                  <option value="duration">⏳ Lama Durasi (Terlama)</option>
+                  <option value="time">⏰ Waktu</option>
+                  <option value="priority">🎯 Prioritas</option>
+                  <option value="duration">⏳ Lama Durasi</option>
                   <option value="manual">↕️ Urutan Manual</option>
                 </select>
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-brand-teal">
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[8px] font-bold text-teal-600 dark:text-teal-400">
                   ▼
                 </span>
               </div>
@@ -1420,18 +1417,18 @@ export default function TimeBoxView({
                                   e.target.value as TimeBoxPriority
                                 )
                               }
-                              className={`appearance-none text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 pr-4 rounded-md border outline-none cursor-pointer transition ${
+                              className={`appearance-none text-[10px] font-black uppercase tracking-wider px-2 py-0.5 pr-4 rounded-md border outline-none cursor-pointer transition shadow-2xs ${
                                 isDark
-                                  ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark}`
-                                  : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight}`
+                                  ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark} focus:ring-1 focus:ring-teal-400`
+                                  : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight} focus:ring-1 focus:ring-teal-500`
                               }`}
                             >
-                              <option value="do">Do</option>
-                              <option value="decide">Decide</option>
-                              <option value="delegate">Delegate</option>
-                              <option value="delete">Delete</option>
+                              <option value="do" className="bg-white dark:bg-slate-900 text-rose-600 font-bold">Do</option>
+                              <option value="decide" className="bg-white dark:bg-slate-900 text-teal-600 font-bold">Decide</option>
+                              <option value="delegate" className="bg-white dark:bg-slate-900 text-amber-600 font-bold">Delegate</option>
+                              <option value="delete" className="bg-white dark:bg-slate-900 text-slate-600 font-bold">Delete</option>
                             </select>
-                            <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] opacity-70">
+                            <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] font-bold opacity-80">
                               ▼
                             </span>
                           </div>

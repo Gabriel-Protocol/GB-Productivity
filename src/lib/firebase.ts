@@ -362,6 +362,8 @@ export async function saveTimeBoxRecord(
   try {
     const docRef = doc(db, "users", userId, "days", dateId);
     await setDoc(docRef, {
+      hours: 0,
+      completedHabits: [],
       timeboxTasks: tasks,
       timeboxScore: score
     }, { merge: true });
