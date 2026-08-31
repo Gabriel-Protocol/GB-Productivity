@@ -24,9 +24,7 @@ import {
   Layers,
   RotateCcw,
   X,
-  Check,
-  Settings,
-  GripVertical
+  Check
 } from "lucide-react";
 
 interface TimeBoxViewProps {
@@ -120,7 +118,6 @@ function formatDateKey(d: Date): string {
 function getMonday(d: Date): Date {
   const date = new Date(d);
   const day = date.getDay();
-  // day 0 = Sunday -> diff is -6 to get previous Monday, otherwise 1 - day
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date.setDate(diff));
   monday.setHours(0, 0, 0, 0);
@@ -147,9 +144,12 @@ function calculateDuration(start?: string, end?: string): string | null {
   return `${mins} mnt`;
 }
 
-interface ActiveGearMenuState {
+interface ActiveTimePickerState {
   dateKey: string;
   taskId: string;
+  taskText: string;
+  startTime: string;
+  endTime: string;
 }
 
 export default function TimeBoxView({
@@ -180,8 +180,8 @@ export default function TimeBoxView({
     }
   });
 
-  // State for active gear modal/popover
-  const [activeGearMenu, setActiveGearMenu] = useState<ActiveGearMenuState | null>(null);
+  // State for active Time Picker Pop-up
+  const [activeTimePicker, setActiveTimePicker] = useState<ActiveTimePickerState | null>(null);
 
   // Clipboard for task copying
   const [clipboard, setClipboard] = useState<{
@@ -297,7 +297,7 @@ export default function TimeBoxView({
       localStorage.setItem("gb_timebox_panel_heights", JSON.stringify(next));
       return next;
     });
-    showToast("Ukuran panel dikembalikan ke default (lebar 340px, tinggi 440px).");
+    showToast("Ukuran panel dikembalikan ke default.");
   };
 
   const handleResetAllDimensions = () => {
@@ -324,7 +324,7 @@ export default function TimeBoxView({
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const dayOfWeek = d.getDay(); // 0 is Sunday, 6 is Saturday
+      const dayOfWeek = d.getDay();
       const dateKey = formatDateKey(d);
 
       days.push({
@@ -475,8 +475,8 @@ export default function TimeBoxView({
       .filter((t) => t.id !== taskId)
       .map((t, idx) => ({ ...t, order: idx + 1 }));
     updateAndSave(dateKey, updatedTasks, score);
-    if (activeGearMenu?.taskId === taskId) {
-      setActiveGearMenu(null);
+    if (activeTimePicker?.taskId === taskId) {
+      setActiveTimePicker(null);
     }
     showToast("Tugas telah dihapus.");
   };
@@ -587,23 +587,6 @@ export default function TimeBoxView({
       avgScore
     };
   }, [weekDays, daysData]);
-
-  // Target task for the active gear settings modal
-  const activeGearTaskData = useMemo(() => {
-    if (!activeGearMenu) return null;
-    const { dateKey, taskId } = activeGearMenu;
-    const { tasks } = getDayData(dateKey);
-    const taskIndex = tasks.findIndex((t) => t.id === taskId);
-    const task = tasks[taskIndex];
-    if (!task) return null;
-    return {
-      dateKey,
-      taskId,
-      task,
-      taskIndex,
-      totalTasks: tasks.length
-    };
-  }, [activeGearMenu, daysData]);
 
   const hasCustomDimensions = Object.keys(panelWidths).length > 0 || Object.keys(panelHeights).length > 0;
 
@@ -1024,10 +1007,10 @@ export default function TimeBoxView({
                 </div>
               )}
 
-              {/* Task Items List (Tampilan Ringkas & Sederhana di Luar, dengan Tinggi yang dapat disesuaikan) */}
+              {/* Task Items List (Tampilan Langsung & Praktis: Checkbox, Nama, Pindah, Salin, Hapus, Prioritas & Jam) */}
               <div
                 style={{ height: `${panelHeight}px` }}
-                className="p-3 space-y-2 overflow-y-auto min-h-[160px]"
+                className="p-3 space-y-2.5 overflow-y-auto min-h-[160px]"
               >
                 {tasks.length === 0 ? (
                   <div className="h-full py-8 flex flex-col items-center justify-center text-center">
@@ -1039,26 +1022,25 @@ export default function TimeBoxView({
                     <span className="text-xs font-medium text-slate-400">Belum ada tugas</span>
                   </div>
                 ) : (
-                  tasks.map((task) => {
+                  tasks.map((task, idx) => {
                     const pConf = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.do;
                     const durationStr = calculateDuration(task.startTime, task.endTime);
-                    const isGearActive = activeGearMenu?.dateKey === dateKey && activeGearMenu?.taskId === task.id;
 
                     return (
                       <div
                         key={task.id}
-                        className={`group p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-1.5 relative ${
+                        className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative ${
                           task.completed
                             ? isDark
                               ? "bg-slate-950/40 border-slate-800/60 opacity-60"
                               : "bg-slate-50/80 border-slate-100 opacity-65"
                             : isDark
                             ? "bg-slate-900 border-slate-800 hover:border-teal-700/60 shadow-xs"
-                            : "bg-white border-slate-200/70 hover:border-teal-300 shadow-xs"
+                            : "bg-white border-slate-200/80 hover:border-teal-300 shadow-xs"
                         }`}
                       >
-                        {/* Row 1: Checkbox + Nama Tugas + Gear Icon Button */}
-                        <div className="flex items-center gap-2">
+                        {/* Baris 1: Checkbox + Input Nama Tugas + Tombol Pindah (Atas/Bawah) + Tombol Salin + Tombol Hapus */}
+                        <div className="flex items-center gap-1.5">
                           {/* Checkbox button - Hijau Tosca */}
                           <button
                             onClick={() => handleToggleTask(dateKey, task.id)}
@@ -1078,7 +1060,7 @@ export default function TimeBoxView({
                             placeholder="Nama tugas..."
                             value={task.text}
                             onChange={(e) => handleUpdateTaskText(dateKey, task.id, e.target.value)}
-                            className={`w-full text-xs font-semibold bg-transparent outline-none leading-normal ${
+                            className={`w-full text-xs font-semibold bg-transparent outline-none leading-normal min-w-0 ${
                               task.completed
                                 ? "line-through text-slate-400 dark:text-slate-500"
                                 : isDark
@@ -1087,65 +1069,114 @@ export default function TimeBoxView({
                             }`}
                           />
 
-                          {/* Gear Icon Button (Pengaturan Tugas) */}
+                          {/* Action Buttons: Pindah Atas/Bawah */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              disabled={idx === 0}
+                              onClick={() => handleMoveTask(dateKey, idx, "up")}
+                              title="Pindahkan Ke Atas"
+                              className={`p-1 rounded-md transition ${
+                                idx === 0
+                                  ? "opacity-25 cursor-not-allowed text-slate-400"
+                                  : isDark
+                                  ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
+                                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                              }`}
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              disabled={idx === tasks.length - 1}
+                              onClick={() => handleMoveTask(dateKey, idx, "down")}
+                              title="Pindahkan Ke Bawah"
+                              className={`p-1 rounded-md transition ${
+                                idx === tasks.length - 1
+                                  ? "opacity-25 cursor-not-allowed text-slate-400"
+                                  : isDark
+                                  ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
+                                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                              }`}
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Action Button: Salin Tugas */}
                           <button
-                            onClick={() =>
-                              setActiveGearMenu({
-                                dateKey,
-                                taskId: task.id
-                              })
-                            }
-                            title="Pengaturan Tugas (Prioritas, Waktu, Salin, Hapus)"
-                            className={`p-1 rounded-lg transition cursor-pointer shrink-0 ${
-                              isGearActive
-                                ? "bg-brand-teal text-white shadow-xs"
-                                : isDark
+                            onClick={() => handleCopySingleTask(task)}
+                            title="Salin Tugas Ini"
+                            className={`p-1 rounded-md transition cursor-pointer shrink-0 ${
+                              isDark
                                 ? "text-slate-400 hover:text-brand-teal hover:bg-slate-800"
                                 : "text-slate-400 hover:text-brand-teal hover:bg-teal-50"
                             }`}
                           >
-                            <Settings className="w-3.5 h-3.5" />
+                            <Copy className="w-3 h-3" />
+                          </button>
+
+                          {/* Action Button: Hapus Tugas */}
+                          <button
+                            onClick={() => handleDeleteTask(dateKey, task.id)}
+                            title="Hapus Tugas"
+                            className={`p-1 rounded-md transition cursor-pointer shrink-0 ${
+                              isDark
+                                ? "text-slate-400 hover:text-rose-400 hover:bg-rose-950/30"
+                                : "text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
 
-                        {/* Row 2: Sederhana di Luar: Prioritas + Jam + Durasi */}
-                        <div className="flex items-center justify-between gap-1.5 pl-6 text-[10px]">
-                          {/* Priority Badge */}
-                          <button
-                            onClick={() =>
-                              setActiveGearMenu({
-                                dateKey,
-                                taskId: task.id
-                              })
-                            }
-                            title="Klik untuk ubah prioritas di pengaturan"
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-extrabold uppercase tracking-wider border cursor-pointer ${
-                              isDark
-                                ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark}`
-                                : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight}`
-                            }`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${pConf.dotColor}`} />
-                            <span>{pConf.label}</span>
-                          </button>
+                        {/* Baris 2: Dropdown Prioritas Kuadran & Waktu / Durasi */}
+                        <div className="flex items-center justify-between gap-2 pl-5.5 text-[10px]">
+                          {/* Dropdown Prioritas (Do, Decide, Delegate, Delete) */}
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={task.priority}
+                              onChange={(e) =>
+                                handleUpdateTaskPriority(
+                                  dateKey,
+                                  task.id,
+                                  e.target.value as TimeBoxPriority
+                                )
+                              }
+                              className={`appearance-none text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 pr-4 rounded-md border outline-none cursor-pointer transition ${
+                                isDark
+                                  ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark}`
+                                  : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight}`
+                              }`}
+                            >
+                              <option value="do">Do</option>
+                              <option value="decide">Decide</option>
+                              <option value="delegate">Delegate</option>
+                              <option value="delete">Delete</option>
+                            </select>
+                            <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] opacity-70">
+                              ▼
+                            </span>
+                          </div>
 
-                          {/* Jam & Durasi Display */}
+                          {/* Tombol Atur Waktu & Durasi */}
                           <button
                             onClick={() =>
-                              setActiveGearMenu({
+                              setActiveTimePicker({
                                 dateKey,
-                                taskId: task.id
+                                taskId: task.id,
+                                taskText: task.text,
+                                startTime: task.startTime || "08:00",
+                                endTime: task.endTime || "09:00"
                               })
                             }
-                            title="Klik untuk ubah jam & durasi di pengaturan"
-                            className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded border text-left cursor-pointer transition font-medium ${
+                            title="Klik untuk mengatur jam & durasi"
+                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-left cursor-pointer transition font-medium ${
                               task.startTime || task.endTime
                                 ? isDark
                                   ? "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-brand-teal/40"
                                   : "bg-slate-50 border-slate-200 text-slate-700 hover:border-teal-300"
                                 : isDark
-                                ? "border-transparent text-slate-500 hover:text-slate-400"
-                                : "border-transparent text-slate-400 hover:text-slate-600"
+                                ? "border-slate-800 text-slate-500 hover:text-slate-400 hover:border-slate-700"
+                                : "border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300"
                             }`}
                           >
                             <Clock className="w-3 h-3 text-brand-teal shrink-0" />
@@ -1200,42 +1231,31 @@ export default function TimeBoxView({
         })}
       </div>
 
-      {/* POP-UP MODAL PENGATURAN TUGAS (GEAR ICON) */}
-      {activeGearTaskData && (
-        <TaskSettingsModal
+      {/* POP-UP TIME PICKER MODAL */}
+      {activeTimePicker && (
+        <TimePickerModal
           isDark={isDark}
-          taskData={activeGearTaskData}
-          onClose={() => setActiveGearMenu(null)}
-          onUpdatePriority={(p) =>
-            handleUpdateTaskPriority(
-              activeGearTaskData.dateKey,
-              activeGearTaskData.taskId,
-              p
-            )
-          }
-          onUpdateTimes={(start, end) =>
+          data={activeTimePicker}
+          onClose={() => setActiveTimePicker(null)}
+          onSave={(start, end) => {
             handleUpdateTaskTimes(
-              activeGearTaskData.dateKey,
-              activeGearTaskData.taskId,
+              activeTimePicker.dateKey,
+              activeTimePicker.taskId,
               start,
               end
-            )
-          }
-          onCopy={() => {
-            handleCopySingleTask(activeGearTaskData.task);
-          }}
-          onDelete={() => {
-            handleDeleteTask(
-              activeGearTaskData.dateKey,
-              activeGearTaskData.taskId
             );
+            setActiveTimePicker(null);
+            showToast("Waktu tugas berhasil diperbarui.");
           }}
-          onMove={(dir) => {
-            handleMoveTask(
-              activeGearTaskData.dateKey,
-              activeGearTaskData.taskIndex,
-              dir
+          onClear={() => {
+            handleUpdateTaskTimes(
+              activeTimePicker.dateKey,
+              activeTimePicker.taskId,
+              "",
+              ""
             );
+            setActiveTimePicker(null);
+            showToast("Waktu tugas dihapus.");
           }}
         />
       )}
@@ -1243,48 +1263,25 @@ export default function TimeBoxView({
   );
 }
 
-// Sub-Component for Task Settings Modal (Gear Menu)
-interface TaskSettingsModalProps {
+// Sub-Component for Time Picker Pop-up
+interface TimePickerModalProps {
   isDark: boolean;
-  taskData: {
-    dateKey: string;
-    taskId: string;
-    task: TimeBoxTask;
-    taskIndex: number;
-    totalTasks: number;
-  };
+  data: ActiveTimePickerState;
   onClose: () => void;
-  onUpdatePriority: (p: TimeBoxPriority) => void;
-  onUpdateTimes: (start: string, end: string) => void;
-  onCopy: () => void;
-  onDelete: () => void;
-  onMove: (dir: "up" | "down") => void;
+  onSave: (startTime: string, endTime: string) => void;
+  onClear: () => void;
 }
 
-function TaskSettingsModal({
+function TimePickerModal({
   isDark,
-  taskData,
+  data,
   onClose,
-  onUpdatePriority,
-  onUpdateTimes,
-  onCopy,
-  onDelete,
-  onMove
-}: TaskSettingsModalProps) {
-  const { task, taskIndex, totalTasks } = taskData;
-  const [startTime, setStartTime] = useState(task.startTime || "08:00");
-  const [endTime, setEndTime] = useState(task.endTime || "09:00");
+  onSave,
+  onClear
+}: TimePickerModalProps) {
+  const [startTime, setStartTime] = useState(data.startTime || "08:00");
+  const [endTime, setEndTime] = useState(data.endTime || "09:00");
   const currentDuration = calculateDuration(startTime, endTime);
-
-  const handleApplyTimes = () => {
-    onUpdateTimes(startTime, endTime);
-  };
-
-  const handleClearTimes = () => {
-    setStartTime("");
-    setEndTime("");
-    onUpdateTimes("", "");
-  };
 
   const handleAddDuration = (minsToAdd: number) => {
     const baseStart = startTime || "08:00";
@@ -1296,19 +1293,17 @@ function TaskSettingsModal({
     const newEnd = `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
     setStartTime(baseStart);
     setEndTime(newEnd);
-    onUpdateTimes(baseStart, newEnd);
   };
 
   const handleApplyPreset = (start: string, end: string) => {
     setStartTime(start);
     setEndTime(end);
-    onUpdateTimes(start, end);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden transition-all ${
+        className={`w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden transition-all ${
           isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-200 text-slate-800"
         }`}
       >
@@ -1316,16 +1311,16 @@ function TaskSettingsModal({
         <div className={`p-4 border-b flex items-center justify-between ${
           isDark ? "bg-slate-950/70 border-slate-800" : "bg-slate-50 border-slate-100"
         }`}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-brand-teal/10 text-brand-teal flex items-center justify-center">
-              <Settings className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-brand-teal/10 text-brand-teal flex items-center justify-center">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-xs font-extrabold uppercase tracking-wide">
-                Pengaturan Tugas
+                Atur Waktu Tugas
               </h3>
-              <p className="text-[11px] text-slate-400 font-medium truncate max-w-[240px]">
-                {task.text || "(Tanpa Nama)"}
+              <p className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                {data.taskText || "(Tanpa Nama)"}
               </p>
             </div>
           </div>
@@ -1338,247 +1333,142 @@ function TaskSettingsModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
-          {/* Section 1: Pengaturan Prioritas Kuadran */}
-          <div>
-            <label className="text-[11px] font-extrabold text-slate-400 uppercase block mb-2 tracking-wide">
-              1. Pengaturan Prioritas (Kuadran):
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(["do", "decide", "delegate", "delete"] as const).map((p) => {
-                const conf = PRIORITY_CONFIG[p];
-                const isSelected = task.priority === p;
-
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => onUpdatePriority(p)}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                      isSelected
-                        ? isDark
-                          ? `${conf.badgeBgDark} ${conf.badgeTextDark} ${conf.borderDark} ring-1.5 ring-brand-teal`
-                          : `${conf.badgeBgLight} ${conf.badgeTextLight} ${conf.borderLight} ring-2 ring-brand-teal/30`
-                        : isDark
-                        ? "bg-slate-950/40 border-slate-800 text-slate-400 hover:text-slate-200"
-                        : "bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${conf.dotColor}`} />
-                    <span>{conf.label}</span>
-                    {isSelected && <Check className="w-3 h-3 text-brand-teal ml-auto" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Section 2: Pengaturan Waktu & Durasi */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-brand-teal" />
-                <span>2. Pengaturan Waktu:</span>
+        <div className="p-4 space-y-4">
+          {/* Start & End Inputs */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className={`p-2.5 rounded-xl border ${isDark ? "bg-slate-950/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">
+                Jam Mulai
               </label>
-              {currentDuration && (
-                <span className="text-[10px] font-extrabold text-brand-teal bg-brand-teal/10 px-2 py-0.5 rounded-md border border-brand-teal/20">
-                  Durasi: {currentDuration}
-                </span>
-              )}
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full text-sm font-extrabold bg-transparent outline-none text-brand-teal cursor-pointer"
+              />
             </div>
 
-            {/* Start & End Inputs */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className={`p-2.5 rounded-xl border ${isDark ? "bg-slate-950/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-                <label className="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">
-                  Jam Mulai
-                </label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => {
-                    setStartTime(e.target.value);
-                    onUpdateTimes(e.target.value, endTime);
-                  }}
-                  className="w-full text-sm font-extrabold bg-transparent outline-none text-brand-teal cursor-pointer"
-                />
-              </div>
-
-              <div className={`p-2.5 rounded-xl border ${isDark ? "bg-slate-950/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-                <label className="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">
-                  Jam Selesai
-                </label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => {
-                    setEndTime(e.target.value);
-                    onUpdateTimes(startTime, e.target.value);
-                  }}
-                  className="w-full text-sm font-extrabold bg-transparent outline-none text-brand-teal cursor-pointer"
-                />
-              </div>
+            <div className={`p-2.5 rounded-xl border ${isDark ? "bg-slate-950/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">
+                Jam Selesai
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full text-sm font-extrabold bg-transparent outline-none text-brand-teal cursor-pointer"
+              />
             </div>
-
-            {/* Quick Add Duration Buttons */}
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 block mb-1.5">
-                Tambah Durasi Cepat:
-              </span>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[15, 30, 45, 60, 90, 120].map((mins) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => handleAddDuration(mins)}
-                    className={`py-1 rounded-lg border text-[10px] font-bold transition cursor-pointer text-center ${
-                      isDark
-                        ? "bg-slate-950 border-slate-800 hover:bg-slate-800 text-slate-300"
-                        : "bg-slate-50 border-slate-200 hover:bg-teal-50 hover:text-brand-teal text-slate-700"
-                    }`}
-                  >
-                    +{mins >= 60 ? `${mins / 60} Jam` : `${mins}m`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Presets */}
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 block mb-1.5">
-                Preset Waktu Populer:
-              </span>
-              <div className="grid grid-cols-2 gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset("08:00", "09:00")}
-                  className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
-                    isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
-                  }`}
-                >
-                  Pagi (08:00 - 09:00)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset("09:00", "11:00")}
-                  className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
-                    isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
-                  }`}
-                >
-                  Fokus (09:00 - 11:00)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset("13:00", "15:00")}
-                  className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
-                    isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
-                  }`}
-                >
-                  Siang (13:00 - 15:00)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset("19:00", "21:00")}
-                  className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
-                    isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
-                  }`}
-                >
-                  Malam (19:00 - 21:00)
-                </button>
-              </div>
-            </div>
-
-            {(startTime || endTime) && (
-              <button
-                type="button"
-                onClick={handleClearTimes}
-                className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer pt-1 block"
-              >
-                Hapus Pengaturan Waktu
-              </button>
-            )}
           </div>
 
-          {/* Section 3: Aksi Tugas (Salin, Pindahkan, Hapus) */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <label className="text-[11px] font-extrabold text-slate-400 uppercase block mb-1.5 tracking-wide">
-              3. Aksi Tugas:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {/* Copy Task */}
+          {/* Duration info */}
+          {currentDuration && (
+            <div className="text-center">
+              <span className="text-[11px] font-extrabold text-brand-teal bg-brand-teal/10 px-3 py-1 rounded-lg border border-brand-teal/20">
+                Total Durasi: {currentDuration}
+              </span>
+            </div>
+          )}
+
+          {/* Quick Add Duration Buttons */}
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 block mb-1.5">
+              Tambah Durasi Cepat:
+            </span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[15, 30, 45, 60, 90, 120].map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => handleAddDuration(mins)}
+                  className={`py-1 rounded-lg border text-[10px] font-bold transition cursor-pointer text-center ${
+                    isDark
+                      ? "bg-slate-950 border-slate-800 hover:bg-slate-800 text-slate-300"
+                      : "bg-slate-50 border-slate-200 hover:bg-teal-50 hover:text-brand-teal text-slate-700"
+                  }`}
+                >
+                  +{mins >= 60 ? `${mins / 60} Jam` : `${mins}m`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Presets */}
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 block mb-1.5">
+              Preset Waktu:
+            </span>
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  onCopy();
-                  onClose();
-                }}
-                className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  isDark
-                    ? "border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300"
-                    : "border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700"
+                onClick={() => handleApplyPreset("08:00", "09:00")}
+                className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
+                  isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
                 }`}
               >
-                <Copy className="w-3.5 h-3.5 text-brand-teal" />
-                <span>Salin Tugas</span>
+                Pagi (08:00 - 09:00)
               </button>
-
-              {/* Move Order */}
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={taskIndex === 0}
-                  type="button"
-                  onClick={() => onMove("up")}
-                  title="Pindahkan ke atas"
-                  className={`flex-1 p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
-                    taskIndex === 0
-                      ? "opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800"
-                      : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-                  } ${isDark ? "bg-slate-950 border-slate-800 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"}`}
-                >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                  <span>Atas</span>
-                </button>
-                <button
-                  disabled={taskIndex === totalTasks - 1}
-                  type="button"
-                  onClick={() => onMove("down")}
-                  title="Pindahkan ke bawah"
-                  className={`flex-1 p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
-                    taskIndex === totalTasks - 1
-                      ? "opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800"
-                      : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-                  } ${isDark ? "bg-slate-950 border-slate-800 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"}`}
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                  <span>Bawah</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("09:00", "11:00")}
+                className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
+                  isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
+                }`}
+              >
+                Fokus (09:00 - 11:00)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("13:00", "15:00")}
+                className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
+                  isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
+                }`}
+              >
+                Siang (13:00 - 15:00)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("19:00", "21:00")}
+                className={`p-1.5 rounded-lg border text-[10px] font-bold text-left transition cursor-pointer ${
+                  isDark ? "bg-slate-950 border-slate-800 hover:bg-slate-800" : "bg-slate-50 border-slate-200 hover:bg-teal-50"
+                }`}
+              >
+                Malam (19:00 - 21:00)
+              </button>
             </div>
-
-            {/* Delete Task */}
-            <button
-              type="button"
-              onClick={onDelete}
-              className="w-full mt-2 py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Hapus Tugas Ini</span>
-            </button>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className={`p-4 border-t flex items-center justify-end gap-2 ${
+        <div className={`p-4 border-t flex items-center justify-between gap-2 ${
           isDark ? "bg-slate-950/70 border-slate-800" : "bg-slate-50 border-slate-100"
         }`}>
           <button
             type="button"
-            onClick={onClose}
-            className="py-2 px-5 rounded-xl bg-brand-teal hover:bg-teal-600 text-white text-xs font-extrabold shadow-sm transition cursor-pointer flex items-center gap-1"
+            onClick={onClear}
+            className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
           >
-            <Check className="w-3.5 h-3.5" />
-            <span>Selesai</span>
+            Hapus Waktu
           </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                isDark ? "border-slate-800 hover:bg-slate-800 text-slate-300" : "border-slate-200 hover:bg-slate-100 text-slate-700"
+              }`}
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave(startTime, endTime)}
+              className="py-1.5 px-4 rounded-xl bg-brand-teal hover:bg-teal-600 text-white text-xs font-extrabold shadow-sm transition cursor-pointer flex items-center gap-1"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Simpan</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
