@@ -20,12 +20,14 @@ import {
 import LoginScreen from "./components/LoginScreen";
 import JamProduktifView from "./components/JamProduktifView";
 import HabitsView from "./components/HabitsView";
+import TimeBoxView from "./components/TimeBoxView";
 import SettingsView from "./components/SettingsView";
 import ExportView from "./components/ExportView";
 
 // Icons
-import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle, Database, FileText } from "lucide-react";
+import { Clock, CheckSquare, Sliders, LogOut, ShieldCheck, Sparkles, AlertCircle, Database, FileText, Layers } from "lucide-react";
 import { motion } from "motion/react";
+import { TimeBoxTask } from "./types";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -33,7 +35,7 @@ export default function App() {
   const [daysData, setDaysData] = useState<Record<string, DailyRecord>>({});
 
   // App state
-  const [activeTab, setActiveTab] = useState<"productive" | "habits" | "settings" | "export">("productive");
+  const [activeTab, setActiveTab] = useState<"productive" | "habits" | "timebox" | "settings" | "export">("productive");
   const [appLoading, setAppLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
 
@@ -92,6 +94,20 @@ export default function App() {
         [dateId]: {
           ...existing,
           completedHabits: completedList
+        }
+      };
+    });
+  };
+
+  const handleTimeBoxUpdated = (dateId: string, tasks: TimeBoxTask[], score: string | number) => {
+    setDaysData((prev) => {
+      const existing = prev[dateId] || { hours: 0, completedHabits: [] };
+      return {
+        ...prev,
+        [dateId]: {
+          ...existing,
+          timeboxTasks: tasks,
+          timeboxScore: score
         }
       };
     });
@@ -237,6 +253,23 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("timebox")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                activeTab === "timebox"
+                  ? isDark
+                    ? "bg-brand-teal text-white shadow-inner"
+                    : "bg-white text-brand-teal shadow-sm border border-slate-100"
+                  : isDark
+                  ? "text-slate-400 hover:text-white"
+                  : "text-slate-500 hover:text-brand-teal"
+              }`}
+              id="tab-timebox"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Time Box</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("settings")}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
                 activeTab === "settings"
@@ -291,6 +324,15 @@ export default function App() {
               config={userConfig}
               daysData={daysData}
               onDataUpdated={handleHabitsUpdated}
+            />
+          )}
+
+          {activeTab === "timebox" && userConfig && (
+            <TimeBoxView
+              userId={currentUser.uid}
+              config={userConfig}
+              daysData={daysData}
+              onDataUpdated={handleTimeBoxUpdated}
             />
           )}
 

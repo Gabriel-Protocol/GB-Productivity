@@ -15,9 +15,23 @@ export interface UserConfig {
   habitsConfig: HabitGroup[];
 }
 
+export type TimeBoxPriority = "do" | "decide" | "delegate" | "delete";
+
+export interface TimeBoxTask {
+  id: string;
+  text: string;
+  completed: boolean;
+  startTime?: string;
+  endTime?: string;
+  priority: TimeBoxPriority;
+  order: number;
+}
+
 export interface DailyRecord {
   hours: number;
   completedHabits: string[]; // Concatenated references: "habitGroupId::itemIndex"
+  timeboxTasks?: TimeBoxTask[];
+  timeboxScore?: string | number;
 }
 
 export interface MonthlyData {

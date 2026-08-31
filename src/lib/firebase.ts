@@ -114,9 +114,23 @@ export interface UserConfig {
   habitsConfig: HabitGroup[];
 }
 
+export type TimeBoxPriority = "do" | "decide" | "delegate" | "delete";
+
+export interface TimeBoxTask {
+  id: string;
+  text: string;
+  completed: boolean;
+  startTime?: string;
+  endTime?: string;
+  priority: TimeBoxPriority;
+  order: number;
+}
+
 export interface DailyRecord {
   hours: number;
   completedHabits: string[]; // Stores strings like "habitId::itemName"
+  timeboxTasks?: TimeBoxTask[];
+  timeboxScore?: string | number;
 }
 
 // Default configurations
@@ -179,13 +193,15 @@ export async function getDailyRecord(userId: string, dateId: string): Promise<Da
       const data = docSnap.data();
       return {
         hours: Number(data.hours || 0),
-        completedHabits: data.completedHabits || []
+        completedHabits: data.completedHabits || [],
+        timeboxTasks: data.timeboxTasks || [],
+        timeboxScore: data.timeboxScore !== undefined ? data.timeboxScore : ""
       } as DailyRecord;
     }
   } catch (error) {
     console.warn(`Failed to fetch daily record for date ${dateId}`, error);
   }
-  return { hours: 0, completedHabits: [] };
+  return { hours: 0, completedHabits: [], timeboxTasks: [], timeboxScore: "" };
 }
 
 export async function getUserDays(userId: string): Promise<Record<string, DailyRecord>> {
@@ -197,7 +213,9 @@ export async function getUserDays(userId: string): Promise<Record<string, DailyR
       const data = docSnap.data();
       result[docSnap.id] = {
         hours: Number(data.hours || 0),
-        completedHabits: data.completedHabits || []
+        completedHabits: data.completedHabits || [],
+        timeboxTasks: data.timeboxTasks || [],
+        timeboxScore: data.timeboxScore !== undefined ? data.timeboxScore : ""
       };
     });
   } catch (error) {
@@ -318,12 +336,37 @@ export async function calculateAndSaveSummary(
 export async function saveDailyRecord(userId: string, dateId: string, record: DailyRecord): Promise<void> {
   try {
     const docRef = doc(db, "users", userId, "days", dateId);
-    await setDoc(docRef, {
-      hours: Number(record.hours),
-      completedHabits: record.completedHabits
-    });
+    const dataToSave: any = {
+      hours: Number(record.hours || 0),
+      completedHabits: record.completedHabits || []
+    };
+    if (record.timeboxTasks !== undefined) {
+      dataToSave.timeboxTasks = record.timeboxTasks;
+    }
+    if (record.timeboxScore !== undefined) {
+      dataToSave.timeboxScore = record.timeboxScore;
+    }
+    await setDoc(docRef, dataToSave, { merge: true });
   } catch (error) {
     console.error(`Failed to preserve daily record for date ${dateId}`, error);
+    throw error;
+  }
+}
+
+export async function saveTimeBoxRecord(
+  userId: string, 
+  dateId: string, 
+  tasks: TimeBoxTask[], 
+  score: string | number
+): Promise<void> {
+  try {
+    const docRef = doc(db, "users", userId, "days", dateId);
+    await setDoc(docRef, {
+      timeboxTasks: tasks,
+      timeboxScore: score
+    }, { merge: true });
+  } catch (error) {
+    console.error(`Failed to preserve timebox record for date ${dateId}`, error);
     throw error;
   }
 }
@@ -345,10 +388,17 @@ export async function bulkSaveDailyRecords(userId: string, records: Record<strin
       chunk.forEach((dateKey) => {
         const record = records[dateKey];
         const docRef = doc(db, "users", userId, "days", dateKey);
-        batch.set(docRef, {
+        const dataToSave: any = {
           hours: Number(record.hours || 0),
           completedHabits: record.completedHabits || []
-        });
+        };
+        if (record.timeboxTasks !== undefined) {
+          dataToSave.timeboxTasks = record.timeboxTasks;
+        }
+        if (record.timeboxScore !== undefined) {
+          dataToSave.timeboxScore = record.timeboxScore;
+        }
+        batch.set(docRef, dataToSave, { merge: true });
       });
       await batch.commit();
     }
