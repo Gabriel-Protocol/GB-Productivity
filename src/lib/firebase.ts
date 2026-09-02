@@ -99,39 +99,23 @@ export async function testFirebaseConnection(): Promise<boolean> {
   }
 }
 
-// Data models
-export interface HabitGroup {
-  id: string;
-  name: string;
-  items: string[];
-}
+import {
+  HabitGroup,
+  UserConfig,
+  TimeBoxPriority,
+  TimeBoxTask,
+  DailyRecord,
+  MonthlyData
+} from "../types";
 
-export interface UserConfig {
-  theme: "light" | "dark";
-  thresholdVeryBad: number;
-  thresholdBad: number;
-  thresholdFair: number;
-  habitsConfig: HabitGroup[];
-}
-
-export type TimeBoxPriority = "do" | "decide" | "delegate" | "delete";
-
-export interface TimeBoxTask {
-  id: string;
-  text: string;
-  completed: boolean;
-  startTime?: string;
-  endTime?: string;
-  priority: TimeBoxPriority;
-  order: number;
-}
-
-export interface DailyRecord {
-  hours: number;
-  completedHabits: string[]; // Stores strings like "habitId::itemName"
-  timeboxTasks?: TimeBoxTask[];
-  timeboxScore?: string | number;
-}
+export type {
+  HabitGroup,
+  UserConfig,
+  TimeBoxPriority,
+  TimeBoxTask,
+  DailyRecord,
+  MonthlyData
+};
 
 // Default configurations
 export const DEFAULT_CONFIG: UserConfig = {
@@ -333,6 +317,52 @@ export async function calculateAndSaveSummary(
   }
 }
 
+/**
+ * Recursively removes all keys with `undefined` values from an object or array.
+ * Firestore `setDoc` and `updateDoc` throw an error if any field is `undefined`.
+ */
+export function removeUndefinedFields<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
+  }
+  if (typeof obj === "object") {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        result[key] = removeUndefinedFields(value);
+      }
+    }
+    return result as T;
+  }
+  return obj;
+}
+
+export function sanitizeTimeBoxTasks(tasks: TimeBoxTask[]): any[] {
+  if (!Array.isArray(tasks)) return [];
+  return tasks.map((t, idx) => {
+    const item: Record<string, any> = {
+      id: t.id || `tb_${Date.now()}_${idx}`,
+      text: t.text || "",
+      completed: Boolean(t.completed),
+      priority: t.priority || "pertama",
+      order: typeof t.order === "number" ? t.order : idx + 1
+    };
+    if (t.startTime !== undefined && t.startTime !== null && t.startTime !== "") {
+      item.startTime = t.startTime;
+    }
+    if (t.endTime !== undefined && t.endTime !== null && t.endTime !== "") {
+      item.endTime = t.endTime;
+    }
+    if (t.color !== undefined && t.color !== null && t.color !== "") {
+      item.color = t.color;
+    }
+    return item;
+  });
+}
+
 export async function saveDailyRecord(userId: string, dateId: string, record: DailyRecord): Promise<void> {
   try {
     const docRef = doc(db, "users", userId, "days", dateId);
@@ -341,12 +371,12 @@ export async function saveDailyRecord(userId: string, dateId: string, record: Da
       completedHabits: record.completedHabits || []
     };
     if (record.timeboxTasks !== undefined) {
-      dataToSave.timeboxTasks = record.timeboxTasks;
+      dataToSave.timeboxTasks = sanitizeTimeBoxTasks(record.timeboxTasks);
     }
     if (record.timeboxScore !== undefined) {
-      dataToSave.timeboxScore = record.timeboxScore;
+      dataToSave.timeboxScore = record.timeboxScore !== null ? record.timeboxScore : "";
     }
-    await setDoc(docRef, dataToSave, { merge: true });
+    await setDoc(docRef, removeUndefinedFields(dataToSave), { merge: true });
   } catch (error) {
     console.error(`Failed to preserve daily record for date ${dateId}`, error);
     throw error;
@@ -361,12 +391,12 @@ export async function saveTimeBoxRecord(
 ): Promise<void> {
   try {
     const docRef = doc(db, "users", userId, "days", dateId);
-    await setDoc(docRef, {
-      hours: 0,
-      completedHabits: [],
-      timeboxTasks: tasks,
-      timeboxScore: score
-    }, { merge: true });
+    const cleanedTasks = sanitizeTimeBoxTasks(tasks);
+    const dataToSave: any = {
+      timeboxTasks: cleanedTasks,
+      timeboxScore: score !== undefined && score !== null ? score : ""
+    };
+    await setDoc(docRef, removeUndefinedFields(dataToSave), { merge: true });
   } catch (error) {
     console.error(`Failed to preserve timebox record for date ${dateId}`, error);
     throw error;
@@ -395,12 +425,12 @@ export async function bulkSaveDailyRecords(userId: string, records: Record<strin
           completedHabits: record.completedHabits || []
         };
         if (record.timeboxTasks !== undefined) {
-          dataToSave.timeboxTasks = record.timeboxTasks;
+          dataToSave.timeboxTasks = sanitizeTimeBoxTasks(record.timeboxTasks);
         }
         if (record.timeboxScore !== undefined) {
-          dataToSave.timeboxScore = record.timeboxScore;
+          dataToSave.timeboxScore = record.timeboxScore !== null ? record.timeboxScore : "";
         }
-        batch.set(docRef, dataToSave, { merge: true });
+        batch.set(docRef, removeUndefinedFields(dataToSave), { merge: true });
       });
       await batch.commit();
     }

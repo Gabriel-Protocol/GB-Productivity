@@ -127,7 +127,10 @@ export default function ExportView({
 
             const taskDetails = tbTasks.map(t => {
               const checkMark = t.completed ? "[V]" : "[ ]";
-              const pLabel = t.priority ? t.priority.toUpperCase() : "DO";
+              let pLabel = "PERTAMA";
+              if (t.priority === "kedua" || t.priority === "decide") pLabel = "KEDUA";
+              else if (t.priority === "ketiga" || t.priority === "delegate") pLabel = "KETIGA";
+              else if (t.priority === "keempat" || t.priority === "delete") pLabel = "KEEMPAT";
               const timeSlot = (t.startTime || t.endTime) ? ` (${t.startTime || ''}-${t.endTime || ''})` : '';
               return `${checkMark} [${pLabel}] ${t.text}${timeSlot}`;
             }).join(" ; ");
@@ -308,10 +311,10 @@ export default function ExportView({
                   const tbList = r.timeboxTasks || [];
                   const tbScoreVal = r.timeboxScore !== undefined && r.timeboxScore !== "" ? r.timeboxScore : "-";
                   const tbFormatted = tbList.map(t => {
-                    let pBadge = `<span class="badge badge-do">Do</span>`;
-                    if (t.priority === "decide") pBadge = `<span class="badge badge-decide">Decide</span>`;
-                    else if (t.priority === "delegate") pBadge = `<span class="badge badge-del">Delegate</span>`;
-                    else if (t.priority === "delete") pBadge = `<span class="badge badge-del2">Delete</span>`;
+                    let pBadge = `<span class="badge badge-do">Pertama</span>`;
+                    if (t.priority === "kedua" || t.priority === "decide") pBadge = `<span class="badge badge-decide">Kedua</span>`;
+                    else if (t.priority === "ketiga" || t.priority === "delegate") pBadge = `<span class="badge badge-del">Ketiga</span>`;
+                    else if (t.priority === "keempat" || t.priority === "delete") pBadge = `<span class="badge badge-del2">Keempat</span>`;
 
                     const tSpan = (t.startTime || t.endTime) ? `<span style="color:#64748b; font-size:10px;">(${t.startTime || ''}-${t.endTime || ''})</span>` : '';
                     return `

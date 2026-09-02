@@ -29,7 +29,8 @@ import {
   ListChecks,
   CheckSquare,
   SlidersHorizontal,
-  Command
+  Command,
+  Palette
 } from "lucide-react";
 
 interface TimeBoxViewProps {
@@ -41,8 +42,19 @@ interface TimeBoxViewProps {
 
 export type TimeBoxSortMode = "time" | "priority" | "duration" | "manual";
 
+export type NormalizedPriority = "pertama" | "kedua" | "ketiga" | "keempat";
+
+export function normalizePriority(p?: string): NormalizedPriority {
+  if (!p) return "pertama";
+  if (p === "do" || p === "pertama") return "pertama";
+  if (p === "decide" || p === "kedua") return "kedua";
+  if (p === "delegate" || p === "ketiga") return "ketiga";
+  if (p === "delete" || p === "keempat") return "keempat";
+  return "pertama";
+}
+
 const PRIORITY_CONFIG: Record<
-  TimeBoxPriority,
+  NormalizedPriority,
   {
     label: string;
     rank: number;
@@ -55,8 +67,8 @@ const PRIORITY_CONFIG: Record<
     dotColor: string;
   }
 > = {
-  do: {
-    label: "Do",
+  pertama: {
+    label: "Pertama",
     rank: 1,
     badgeBgLight: "bg-rose-100/90",
     badgeTextLight: "text-rose-700",
@@ -66,8 +78,8 @@ const PRIORITY_CONFIG: Record<
     borderDark: "border-rose-700",
     dotColor: "bg-rose-500"
   },
-  decide: {
-    label: "Decide",
+  kedua: {
+    label: "Kedua",
     rank: 2,
     badgeBgLight: "bg-teal-100/90",
     badgeTextLight: "text-teal-800",
@@ -77,8 +89,8 @@ const PRIORITY_CONFIG: Record<
     borderDark: "border-teal-700",
     dotColor: "bg-teal-500"
   },
-  delegate: {
-    label: "Delegate",
+  ketiga: {
+    label: "Ketiga",
     rank: 3,
     badgeBgLight: "bg-amber-100/90",
     badgeTextLight: "text-amber-800",
@@ -88,8 +100,8 @@ const PRIORITY_CONFIG: Record<
     borderDark: "border-amber-700",
     dotColor: "bg-amber-500"
   },
-  delete: {
-    label: "Delete",
+  keempat: {
+    label: "Keempat",
     rank: 4,
     badgeBgLight: "bg-slate-200/90",
     badgeTextLight: "text-slate-800",
@@ -100,6 +112,90 @@ const PRIORITY_CONFIG: Record<
     dotColor: "bg-slate-400"
   }
 };
+
+export const AVAILABLE_TASK_COLORS = [
+  { id: "teal", label: "Teal", colorClass: "bg-teal-500", hex: "#0d9488" },
+  { id: "emerald", label: "Emerald", colorClass: "bg-emerald-500", hex: "#10b981" },
+  { id: "indigo", label: "Indigo", colorClass: "bg-indigo-500", hex: "#6366f1" },
+  { id: "rose", label: "Rose", colorClass: "bg-rose-500", hex: "#f43f5e" },
+  { id: "amber", label: "Amber", colorClass: "bg-amber-500", hex: "#f59e0b" },
+  { id: "purple", label: "Purple", colorClass: "bg-purple-500", hex: "#a855f7" },
+  { id: "slate", label: "Slate", colorClass: "bg-slate-500", hex: "#64748b" },
+];
+
+function getTaskCardClasses(
+  task: TimeBoxTask,
+  isDark: boolean,
+  isSelected: boolean
+): string {
+  if (isSelected) {
+    return isDark
+      ? "ring-2 ring-brand-teal bg-teal-950/60 border-teal-500 shadow-xs"
+      : "ring-2 ring-brand-teal bg-teal-50/90 border-brand-teal shadow-xs";
+  }
+
+  if (task.completed) {
+    return isDark
+      ? "bg-slate-950/40 border-slate-800/60 opacity-60"
+      : "bg-slate-50/80 border-slate-100 opacity-65";
+  }
+
+  if (!task.color) {
+    return isDark
+      ? "bg-slate-900 border-slate-800 hover:border-teal-700/60 shadow-xs"
+      : "bg-white border-slate-200/80 hover:border-teal-300 shadow-xs";
+  }
+
+  switch (task.color) {
+    case "teal":
+      return isDark
+        ? "bg-teal-950/45 border-teal-800/80 hover:border-teal-600/80 shadow-xs text-slate-100"
+        : "bg-teal-50/85 border-teal-200 hover:border-teal-300 shadow-xs text-slate-900";
+    case "emerald":
+      return isDark
+        ? "bg-emerald-950/45 border-emerald-800/80 hover:border-emerald-600/80 shadow-xs text-slate-100"
+        : "bg-emerald-50/85 border-emerald-200 hover:border-emerald-300 shadow-xs text-slate-900";
+    case "indigo":
+      return isDark
+        ? "bg-indigo-950/45 border-indigo-800/80 hover:border-indigo-600/80 shadow-xs text-slate-100"
+        : "bg-indigo-50/85 border-indigo-200 hover:border-indigo-300 shadow-xs text-slate-900";
+    case "rose":
+      return isDark
+        ? "bg-rose-950/45 border-rose-800/80 hover:border-rose-600/80 shadow-xs text-slate-100"
+        : "bg-rose-50/85 border-rose-200 hover:border-rose-300 shadow-xs text-slate-900";
+    case "amber":
+      return isDark
+        ? "bg-amber-950/45 border-amber-800/80 hover:border-amber-600/80 shadow-xs text-slate-100"
+        : "bg-amber-50/85 border-amber-200 hover:border-amber-300 shadow-xs text-slate-900";
+    case "purple":
+      return isDark
+        ? "bg-purple-950/45 border-purple-800/80 hover:border-purple-600/80 shadow-xs text-slate-100"
+        : "bg-purple-50/85 border-purple-200 hover:border-purple-300 shadow-xs text-slate-900";
+    case "slate":
+      return isDark
+        ? "bg-slate-800/80 border-slate-700 hover:border-slate-600 shadow-xs text-slate-100"
+        : "bg-slate-100/90 border-slate-300 hover:border-slate-400 shadow-xs text-slate-900";
+    default:
+      return isDark
+        ? "border-slate-700 shadow-xs text-slate-100"
+        : "border-slate-300 shadow-xs text-slate-900";
+  }
+}
+
+function getTaskCardInlineStyle(
+  task: TimeBoxTask,
+  isDark: boolean,
+  isSelected: boolean
+): React.CSSProperties | undefined {
+  if (isSelected || task.completed || !task.color || !task.color.startsWith("#")) {
+    return undefined;
+  }
+  const hex = task.color;
+  return {
+    backgroundColor: isDark ? `${hex}26` : `${hex}1c`,
+    borderColor: isDark ? `${hex}70` : `${hex}55`
+  };
+}
 
 const INDO_MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -181,8 +277,10 @@ function sortTasksList(tasks: TimeBoxTask[], mode: TimeBoxSortMode): TimeBoxTask
 
   if (mode === "priority") {
     return list.sort((a, b) => {
-      const rankA = PRIORITY_CONFIG[a.priority]?.rank || 99;
-      const rankB = PRIORITY_CONFIG[b.priority]?.rank || 99;
+      const normA = normalizePriority(a.priority);
+      const normB = normalizePriority(b.priority);
+      const rankA = PRIORITY_CONFIG[normA]?.rank || 99;
+      const rankB = PRIORITY_CONFIG[normB]?.rank || 99;
       if (rankA !== rankB) return rankA - rankB;
       const timeA = getStartMinutes(a.startTime);
       const timeB = getStartMinutes(b.startTime);
@@ -262,6 +360,10 @@ export default function TimeBoxView({
 
   // State for active Time Picker Pop-up
   const [activeTimePicker, setActiveTimePicker] = useState<ActiveTimePickerState | null>(null);
+
+  // State for active Color Picker Popover (taskId or null, and bulk picker)
+  const [openColorPickerTaskId, setOpenColorPickerTaskId] = useState<string | null>(null);
+  const [openBulkColorPicker, setOpenBulkColorPicker] = useState<boolean>(false);
 
   // Clipboard for task copying
   const [clipboard, setClipboard] = useState<{
@@ -587,7 +689,7 @@ export default function TimeBoxView({
       completed: false,
       startTime: defaultStart,
       endTime: defaultEnd,
-      priority: "do",
+      priority: "pertama",
       order: tasks.length + 1
     };
 
@@ -624,6 +726,41 @@ export default function TimeBoxView({
       t.id === taskId ? { ...t, priority } : t
     );
     updateAndSave(dateKey, updatedTasks, score);
+  };
+
+  const handleUpdateTaskColor = (
+    dateKey: string,
+    taskId: string,
+    color?: string
+  ) => {
+    setSelectedDateKey(dateKey);
+    const { tasks, score } = getRawDayData(dateKey);
+    const updatedTasks = tasks.map((t) => {
+      if (t.id !== taskId) return t;
+      if (!color) {
+        const { color: _, ...rest } = t;
+        return rest;
+      }
+      return { ...t, color };
+    });
+    updateAndSave(dateKey, updatedTasks, score);
+    showToast(color ? "Warna penanda tugas berhasil diubah." : "Warna penanda tugas direset.");
+  };
+
+  const handleBulkUpdateTaskColor = (color?: string) => {
+    if (selectedTaskIds.length === 0 || !selectedDateKey) return;
+    const { tasks, score } = getRawDayData(selectedDateKey);
+    const updatedTasks = tasks.map((t) => {
+      if (!selectedTaskIds.includes(t.id)) return t;
+      if (!color) {
+        const { color: _, ...rest } = t;
+        return rest;
+      }
+      return { ...t, color };
+    });
+    updateAndSave(selectedDateKey, updatedTasks, score);
+    setOpenBulkColorPicker(false);
+    showToast(`Warna untuk ${selectedTaskIds.length} tugas terpilih berhasil diubah.`);
   };
 
   const handleUpdateTaskTimes = (
@@ -864,25 +1001,61 @@ export default function TimeBoxView({
     showToast("Tugas yang sudah selesai dibersihkan.");
   };
 
+  // Ringkasan tugas terpilih untuk menampilkan panel total durasi (Request 1)
+  const selectedTasksSummary = useMemo(() => {
+    if (selectedTaskIds.length === 0 || !selectedDateKey) return null;
+    const { tasks } = getRawDayData(selectedDateKey);
+    const selected = tasks.filter((t) => selectedTaskIds.includes(t.id));
+    if (selected.length === 0) return null;
+
+    let totalMinutes = 0;
+    let timedCount = 0;
+    selected.forEach((t) => {
+      const m = getDurationMinutes(t.startTime, t.endTime);
+      if (m > 0) {
+        totalMinutes += m;
+        timedCount++;
+      }
+    });
+
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    let durationLabel = "";
+    if (hours > 0 && mins > 0) {
+      durationLabel = `${hours} jam ${mins} menit`;
+    } else if (hours > 0) {
+      durationLabel = `${hours} jam`;
+    } else if (mins > 0) {
+      durationLabel = `${mins} menit`;
+    } else {
+      durationLabel = "0 menit";
+    }
+
+    return {
+      count: selected.length,
+      timedCount,
+      totalMinutes,
+      durationLabel
+    };
+  }, [selectedTaskIds, selectedDateKey, daysData]);
+
   // Total summary across the 7 days of this week
-  // CATATAN: Tugas dengan prioritas "DELETE" tidak dijumlahkan ke total tugas dan diabaikan di progress bar
+  // Sistem prioritas baru: Pertama, Kedua, Ketiga, Keempat
   const weekStats = useMemo(() => {
     let totalTasks = 0;
     let completedTasks = 0;
-    let priorityCounts = { do: 0, decide: 0, delegate: 0, delete: 0 };
+    let priorityCounts = { pertama: 0, kedua: 0, ketiga: 0, keempat: 0 };
     let validScores: number[] = [];
 
     weekDays.forEach(({ dateKey }) => {
       const { tasks, score } = getRawDayData(dateKey);
       tasks.forEach((t) => {
-        if (priorityCounts[t.priority] !== undefined) {
-          priorityCounts[t.priority]++;
+        const normP = normalizePriority(t.priority);
+        if (priorityCounts[normP] !== undefined) {
+          priorityCounts[normP]++;
         }
-        // Abaikan tugas prioritas "delete" dari total dan hitungan selesai
-        if (t.priority !== "delete") {
-          totalTasks++;
-          if (t.completed) completedTasks++;
-        }
+        totalTasks++;
+        if (t.completed) completedTasks++;
       });
       if (score !== "" && score !== undefined) {
         const num = Number(score);
@@ -1041,7 +1214,7 @@ export default function TimeBoxView({
         </div>
 
         {/* Weekly Metric Summary Bar */}
-        <div className={`mt-5 pt-4 border-t grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 ${
+        <div className={`mt-5 pt-4 border-t grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 ${
           isDark ? "border-slate-800/80" : "border-slate-100"
         }`}>
           {/* Total Tasks */}
@@ -1066,27 +1239,35 @@ export default function TimeBoxView({
             </div>
           </div>
 
-          {/* Quadrant: Do */}
+          {/* Prioritas: Pertama */}
           <div className={`p-2.5 rounded-xl border ${isDark ? "bg-rose-950/15 border-rose-900/30" : "bg-rose-50/50 border-rose-100"}`}>
-            <span className="text-[10px] uppercase font-bold text-rose-500 block">Do</span>
+            <span className="text-[10px] uppercase font-bold text-rose-500 block">Pertama</span>
             <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">
-              {weekStats.priorityCounts.do}
+              {weekStats.priorityCounts.pertama}
             </span>
           </div>
 
-          {/* Quadrant: Decide */}
+          {/* Prioritas: Kedua */}
           <div className={`p-2.5 rounded-xl border ${isDark ? "bg-teal-950/15 border-teal-900/30" : "bg-teal-50/50 border-teal-100"}`}>
-            <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400 block">Decide</span>
+            <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400 block">Kedua</span>
             <span className="text-base font-extrabold text-teal-600 dark:text-teal-400">
-              {weekStats.priorityCounts.decide}
+              {weekStats.priorityCounts.kedua}
             </span>
           </div>
 
-          {/* Quadrant: Delegate */}
+          {/* Prioritas: Ketiga */}
           <div className={`p-2.5 rounded-xl border ${isDark ? "bg-amber-950/15 border-amber-900/30" : "bg-amber-50/50 border-amber-100"}`}>
-            <span className="text-[10px] uppercase font-bold text-amber-500 block">Delegate</span>
+            <span className="text-[10px] uppercase font-bold text-amber-500 block">Ketiga</span>
             <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">
-              {weekStats.priorityCounts.delegate}
+              {weekStats.priorityCounts.ketiga}
+            </span>
+          </div>
+
+          {/* Prioritas: Keempat */}
+          <div className={`p-2.5 rounded-xl border ${isDark ? "bg-slate-900/60 border-slate-700/50" : "bg-slate-100/70 border-slate-200"}`}>
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Keempat</span>
+            <span className="text-base font-extrabold text-slate-600 dark:text-slate-300">
+              {weekStats.priorityCounts.keempat}
             </span>
           </div>
 
@@ -1416,7 +1597,8 @@ export default function TimeBoxView({
                   </div>
                 ) : (
                   tasks.map((task, idx) => {
-                    const pConf = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.do;
+                    const normPriority = normalizePriority(task.priority);
+                    const pConf = PRIORITY_CONFIG[normPriority] || PRIORITY_CONFIG.pertama;
                     const durationStr = calculateDuration(task.startTime, task.endTime);
                     const selected = isTaskSelected(task.id);
 
@@ -1427,17 +1609,12 @@ export default function TimeBoxView({
                           e.stopPropagation();
                           handleSelectTask(dateKey, task.id, e);
                         }}
-                        className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative cursor-pointer ${
+                        style={getTaskCardInlineStyle(task, isDark, selected)}
+                        className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative cursor-pointer ${getTaskCardClasses(
+                          task,
+                          isDark,
                           selected
-                            ? "ring-2 ring-brand-teal bg-teal-50/50 dark:bg-teal-950/40 border-brand-teal shadow-xs"
-                            : task.completed
-                            ? isDark
-                              ? "bg-slate-950/40 border-slate-800/60 opacity-60"
-                              : "bg-slate-50/80 border-slate-100 opacity-65"
-                            : isDark
-                            ? "bg-slate-900 border-slate-800 hover:border-teal-700/60 shadow-xs"
-                            : "bg-white border-slate-200/80 hover:border-teal-300 shadow-xs"
-                        }`}
+                        )}`}
                       >
                         {/* Baris 1: Checkbox Status + Input Nama Tugas + Tombol Pindah (Atas/Bawah) + Tombol Salin + Tombol Hapus */}
                         <div className="flex items-center gap-1.5">
@@ -1552,33 +1729,138 @@ export default function TimeBoxView({
                           </button>
                         </div>
 
-                        {/* Baris 2: Dropdown Prioritas Kuadran & Waktu / Durasi */}
-                        <div className="flex items-center justify-between gap-2 pl-5.5 text-[10px]">
-                          {/* Dropdown Prioritas (Do, Decide, Delegate, Delete) */}
-                          <div className="relative inline-flex items-center">
-                            <select
-                              value={task.priority}
-                              onChange={(e) =>
-                                handleUpdateTaskPriority(
-                                  dateKey,
-                                  task.id,
-                                  e.target.value as TimeBoxPriority
-                                )
-                              }
-                              className={`appearance-none text-[10px] font-black uppercase tracking-wider px-2 py-0.5 pr-4 rounded-md border outline-none cursor-pointer transition shadow-2xs ${
-                                isDark
-                                  ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark} focus:ring-1 focus:ring-teal-400`
-                                  : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight} focus:ring-1 focus:ring-teal-500`
-                              }`}
-                            >
-                              <option value="do" className="bg-white dark:bg-slate-900 text-rose-600 font-bold">Do</option>
-                              <option value="decide" className="bg-white dark:bg-slate-900 text-teal-600 font-bold">Decide</option>
-                              <option value="delegate" className="bg-white dark:bg-slate-900 text-amber-600 font-bold">Delegate</option>
-                              <option value="delete" className="bg-white dark:bg-slate-900 text-slate-600 font-bold">Delete</option>
-                            </select>
-                            <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] font-bold opacity-80">
-                              ▼
-                            </span>
+                        {/* Baris 2: Dropdown Prioritas Kuadran, Penanda Warna, & Waktu / Durasi */}
+                        <div className="flex items-center justify-between gap-1.5 pl-5.5 text-[10px] flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            {/* Dropdown Prioritas (Pertama, Kedua, Ketiga, Keempat) */}
+                            <div className="relative inline-flex items-center">
+                              <select
+                                value={normPriority}
+                                onChange={(e) =>
+                                  handleUpdateTaskPriority(
+                                    dateKey,
+                                    task.id,
+                                    e.target.value as TimeBoxPriority
+                                  )
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                className={`appearance-none text-[10px] font-black uppercase tracking-wider px-2 py-0.5 pr-4 rounded-md border outline-none cursor-pointer transition shadow-2xs ${
+                                  isDark
+                                    ? `${pConf.badgeBgDark} ${pConf.badgeTextDark} ${pConf.borderDark} focus:ring-1 focus:ring-teal-400`
+                                    : `${pConf.badgeBgLight} ${pConf.badgeTextLight} ${pConf.borderLight} focus:ring-1 focus:ring-teal-500`
+                                }`}
+                              >
+                                <option value="pertama" className="bg-white dark:bg-slate-900 text-rose-600 font-bold">1. Pertama</option>
+                                <option value="kedua" className="bg-white dark:bg-slate-900 text-teal-600 font-bold">2. Kedua</option>
+                                <option value="ketiga" className="bg-white dark:bg-slate-900 text-amber-600 font-bold">3. Ketiga</option>
+                                <option value="keempat" className="bg-white dark:bg-slate-900 text-slate-600 font-bold">4. Keempat</option>
+                              </select>
+                              <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] font-bold opacity-80">
+                                ▼
+                              </span>
+                            </div>
+
+                            {/* Color Picker Penanda Tugas (Presets + Color Picker) */}
+                            <div className="relative inline-flex items-center">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenColorPickerTaskId((curr) => (curr === task.id ? null : task.id));
+                                }}
+                                title="Pilih warna penanda panel tugas"
+                                className={`p-1 rounded-md border transition cursor-pointer flex items-center gap-1 ${
+                                  task.color
+                                    ? isDark
+                                      ? "border-teal-500/50 bg-slate-800 text-teal-300"
+                                      : "border-teal-300 bg-teal-50 text-teal-700"
+                                    : isDark
+                                    ? "border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                                    : "border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                }`}
+                              >
+                                {task.color ? (
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full inline-block border border-black/20 shrink-0"
+                                    style={{
+                                      backgroundColor:
+                                        AVAILABLE_TASK_COLORS.find((c) => c.id === task.color)?.hex ||
+                                        task.color
+                                    }}
+                                  />
+                                ) : (
+                                  <Palette className="w-3 h-3" />
+                                )}
+                              </button>
+
+                              {/* Popover Color Picker */}
+                              {openColorPickerTaskId === task.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`absolute left-0 top-full mt-1.5 p-2.5 rounded-xl border shadow-xl z-30 min-w-[170px] animate-in fade-in zoom-in-95 duration-150 ${
+                                    isDark ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-800"
+                                  }`}
+                                >
+                                  <div className="text-[10px] font-bold text-slate-400 mb-2 flex items-center justify-between">
+                                    <span>Warna Penanda</span>
+                                    {task.color && (
+                                      <button
+                                        onClick={() => {
+                                          handleUpdateTaskColor(dateKey, task.id, undefined);
+                                          setOpenColorPickerTaskId(null);
+                                        }}
+                                        className="text-[9px] text-rose-500 hover:underline cursor-pointer"
+                                      >
+                                        Reset
+                                      </button>
+                                    )}
+                                  </div>
+                                  {/* Preset Buttons */}
+                                  <div className="grid grid-cols-4 gap-1.5 mb-2">
+                                    {AVAILABLE_TASK_COLORS.map((col) => {
+                                      const isPicked = task.color === col.id || task.color === col.hex;
+                                      return (
+                                        <button
+                                          key={col.id}
+                                          type="button"
+                                          onClick={() => {
+                                            handleUpdateTaskColor(dateKey, task.id, col.id);
+                                            setOpenColorPickerTaskId(null);
+                                          }}
+                                          title={col.label}
+                                          className={`w-6 h-6 rounded-lg ${col.colorClass} transition-transform hover:scale-110 flex items-center justify-center cursor-pointer border ${
+                                            isPicked ? "ring-2 ring-brand-teal ring-offset-1 border-white" : "border-black/15"
+                                          }`}
+                                        >
+                                          {isPicked && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  {/* Custom Color Input */}
+                                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-1.5 text-[10px]">
+                                    <span className="text-slate-400">Kustom:</span>
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="color"
+                                        value={task.color?.startsWith("#") ? task.color : "#0d9488"}
+                                        onChange={(e) => {
+                                          handleUpdateTaskColor(dateKey, task.id, e.target.value);
+                                        }}
+                                        className="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setOpenColorPickerTaskId(null)}
+                                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+                                      >
+                                        Tutup
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* Tombol Atur Waktu & Durasi */}
@@ -1664,14 +1946,15 @@ export default function TimeBoxView({
         })}
       </div>
 
-      {/* Floating Multi-Select Action Bar */}
+      {/* Floating Multi-Select Action Bar dengan Panel Total Durasi & Batch Actions */}
       {selectedTaskIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[94%] sm:w-auto">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[95%] sm:w-auto">
           <div className={`p-2.5 sm:px-4 sm:py-3 rounded-2xl border shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between sm:justify-start gap-2 sm:gap-3 text-xs animate-in slide-in-from-bottom-4 duration-200 ${
             isDark
               ? "bg-slate-900/95 border-teal-500/50 text-slate-100 ring-1 ring-teal-500/30"
               : "bg-white/95 border-teal-300 text-slate-800 ring-1 ring-teal-400/30"
           }`}>
+            {/* Jumlah Tugas Terpilih */}
             <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-800">
               <div className="w-6 h-6 rounded-lg bg-brand-teal text-white flex items-center justify-center font-black text-xs">
                 {selectedTaskIds.length}
@@ -1681,7 +1964,26 @@ export default function TimeBoxView({
               </span>
             </div>
 
+            {/* Panel Ringkasan Total Durasi Tugas yang Di-select (Request 1) */}
+            <div className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border flex items-center gap-1.5 font-bold text-xs ${
+              isDark
+                ? "bg-teal-950/70 border-teal-500/40 text-teal-300"
+                : "bg-teal-50 border-teal-200 text-teal-800"
+            }`}>
+              <Clock className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+              <span>
+                Total Durasi: <strong className="font-black text-brand-teal ml-0.5">{selectedTasksSummary?.durationLabel || "0 menit"}</strong>
+              </span>
+              {selectedTasksSummary && selectedTasksSummary.timedCount > 0 && selectedTasksSummary.timedCount < selectedTasksSummary.count && (
+                <span className="text-[10px] text-slate-400 font-normal hidden md:inline">
+                  ({selectedTasksSummary.timedCount}/{selectedTasksSummary.count} tugas berwaktu)
+                </span>
+              )}
+            </div>
+
+            {/* Actions for Selected Tasks */}
             <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Salin Tugas (Ctrl+C) */}
               <button
                 onClick={handleCopySelectedTasks}
                 title="Salin Semua Tugas Terpilih (Ctrl+C)"
@@ -1691,6 +1993,72 @@ export default function TimeBoxView({
                 <span>Salin (Ctrl+C)</span>
               </button>
 
+              {/* Bulk Color Picker Dropdown */}
+              <div className="relative inline-flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setOpenBulkColorPicker((prev) => !prev)}
+                  title="Ubah warna semua tugas terpilih"
+                  className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                    isDark
+                      ? "bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200"
+                      : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5 text-brand-teal" />
+                  <span>Warna</span>
+                </button>
+
+                {openBulkColorPicker && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className={`absolute bottom-full mb-2 left-0 p-2.5 rounded-xl border shadow-xl z-50 min-w-[180px] animate-in fade-in zoom-in-95 duration-150 ${
+                      isDark ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-800"
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold text-slate-400 mb-2 flex items-center justify-between">
+                      <span>Warna {selectedTaskIds.length} Tugas</span>
+                      <button
+                        onClick={() => handleBulkUpdateTaskColor(undefined)}
+                        className="text-[9px] text-rose-500 hover:underline cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 mb-2">
+                      {AVAILABLE_TASK_COLORS.map((col) => (
+                        <button
+                          key={col.id}
+                          type="button"
+                          onClick={() => handleBulkUpdateTaskColor(col.id)}
+                          title={col.label}
+                          className={`w-6 h-6 rounded-lg ${col.colorClass} transition-transform hover:scale-110 flex items-center justify-center cursor-pointer border border-black/15`}
+                        />
+                      ))}
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-1.5 text-[10px]">
+                      <span className="text-slate-400">Kustom:</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="color"
+                          defaultValue="#0d9488"
+                          onChange={(e) => handleBulkUpdateTaskColor(e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer border-0 p-0 bg-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setOpenBulkColorPicker(false)}
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+                        >
+                          Tutup
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Selesai / Belum Selesai */}
               <button
                 onClick={() => handleBulkToggleCompleted(true)}
                 title="Tandai Selesai Semua Tugas Terpilih"
@@ -1702,6 +2070,7 @@ export default function TimeBoxView({
                 <span className="hidden sm:inline">Selesai</span>
               </button>
 
+              {/* Hapus Semua Terpilih */}
               <button
                 onClick={handleDeleteSelectedTasks}
                 title="Hapus Semua Tugas Terpilih"
@@ -1711,6 +2080,7 @@ export default function TimeBoxView({
                 <span>Hapus</span>
               </button>
 
+              {/* Batalkan Pilihan */}
               <button
                 onClick={handleClearSelection}
                 title="Batalkan Pilihan (Esc)"

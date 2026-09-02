@@ -15,7 +15,15 @@ export interface UserConfig {
   habitsConfig: HabitGroup[];
 }
 
-export type TimeBoxPriority = "do" | "decide" | "delegate" | "delete";
+export type TimeBoxPriority =
+  | "pertama"
+  | "kedua"
+  | "ketiga"
+  | "keempat"
+  | "do"
+  | "decide"
+  | "delegate"
+  | "delete";
 
 export interface TimeBoxTask {
   id: string;
@@ -25,6 +33,7 @@ export interface TimeBoxTask {
   endTime?: string;
   priority: TimeBoxPriority;
   order: number;
+  color?: string; // Color marker identifier (teal, emerald, etc.) or custom hex #RRGGBB
 }
 
 export interface DailyRecord {
