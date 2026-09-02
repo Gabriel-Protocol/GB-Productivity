@@ -26,6 +26,8 @@ import {
   RotateCcw,
   X,
   Check,
+  ListChecks,
+  CheckSquare,
   SlidersHorizontal,
   Command
 } from "lucide-react";
@@ -235,9 +237,9 @@ export default function TimeBoxView({
     }
   });
 
-  // Selected Day & Selected Task for Keyboard Navigation & Ctrl+C / Ctrl+V
+  // Selected Day & Selected Tasks for Multi-Selection & Ctrl+C / Ctrl+V
   const [selectedDateKey, setSelectedDateKey] = useState<string>(() => formatDateKey(new Date()));
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   // Individual panel widths and heights stored per dateKey or default
   const [panelWidths, setPanelWidths] = useState<Record<string, number>>(() => {
@@ -502,6 +504,63 @@ export default function TimeBoxView({
     });
   };
 
+  // Helper: check if a task is selected
+  const isTaskSelected = (taskId: string) => selectedTaskIds.includes(taskId);
+
+  // Single or Multi-Select task handler
+  const handleSelectTask = (dateKey: string, taskId: string, e?: React.MouseEvent) => {
+    if (e && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      if (selectedDateKey !== dateKey) {
+        setSelectedDateKey(dateKey);
+        setSelectedTaskIds([taskId]);
+      } else {
+        if (selectedTaskIds.includes(taskId)) {
+          setSelectedTaskIds(selectedTaskIds.filter((id) => id !== taskId));
+        } else {
+          setSelectedTaskIds([...selectedTaskIds, taskId]);
+        }
+      }
+    } else {
+      setSelectedDateKey(dateKey);
+      setSelectedTaskIds([taskId]);
+    }
+  };
+
+  // Dedicated toggle for multi-select (toggled via click with modifier or multi-select action)
+  const handleToggleSelectTask = (dateKey: string, taskId: string) => {
+    if (selectedDateKey !== dateKey) {
+      setSelectedDateKey(dateKey);
+      setSelectedTaskIds([taskId]);
+    } else {
+      if (selectedTaskIds.includes(taskId)) {
+        setSelectedTaskIds(selectedTaskIds.filter((id) => id !== taskId));
+      } else {
+        setSelectedTaskIds([...selectedTaskIds, taskId]);
+      }
+    }
+  };
+
+  // Select all tasks on a specific day
+  const handleSelectAllDay = (dateKey: string) => {
+    setSelectedDateKey(dateKey);
+    const { tasks } = getDayData(dateKey);
+    if (tasks.length === 0) {
+      showToast("Belum ada tugas pada hari ini.");
+      return;
+    }
+    if (selectedDateKey === dateKey && selectedTaskIds.length === tasks.length) {
+      setSelectedTaskIds([]);
+    } else {
+      setSelectedTaskIds(tasks.map((t) => t.id));
+      showToast(`${tasks.length} tugas dipilih.`);
+    }
+  };
+
+  // Clear selection
+  const handleClearSelection = () => {
+    setSelectedTaskIds([]);
+  };
+
   // TASK OPERATIONS
   const handleAddTask = (dateKey: string) => {
     setSelectedDateKey(dateKey);
@@ -534,12 +593,11 @@ export default function TimeBoxView({
 
     const updatedTasks = [...tasks, newTask];
     updateAndSave(dateKey, updatedTasks, score);
-    setSelectedTaskId(newId);
+    setSelectedTaskIds([newId]);
   };
 
   const handleToggleTask = (dateKey: string, taskId: string) => {
     setSelectedDateKey(dateKey);
-    setSelectedTaskId(taskId);
     const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, completed: !t.completed } : t
@@ -561,7 +619,6 @@ export default function TimeBoxView({
     priority: TimeBoxPriority
   ) => {
     setSelectedDateKey(dateKey);
-    setSelectedTaskId(taskId);
     const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, priority } : t
@@ -576,7 +633,6 @@ export default function TimeBoxView({
     endTime: string
   ) => {
     setSelectedDateKey(dateKey);
-    setSelectedTaskId(taskId);
     const { tasks, score } = getRawDayData(dateKey);
     const updatedTasks = tasks.map((t) =>
       t.id === taskId ? { ...t, startTime, endTime } : t
@@ -593,15 +649,12 @@ export default function TimeBoxView({
     if (activeTimePicker?.taskId === taskId) {
       setActiveTimePicker(null);
     }
-    if (selectedTaskId === taskId) {
-      setSelectedTaskId(null);
-    }
+    setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId));
     showToast("Tugas telah dihapus.");
   };
 
   const handleMoveTask = (dateKey: string, index: number, direction: "up" | "down") => {
     setSelectedDateKey(dateKey);
-    // When moving tasks manually, auto-switch to manual mode if not already
     if (sortMode !== "manual") {
       setSortMode("manual");
       try {
@@ -623,16 +676,65 @@ export default function TimeBoxView({
 
     const normalized = reordered.map((t, idx) => ({ ...t, order: idx + 1 }));
     updateAndSave(dateKey, normalized, score);
-    setSelectedTaskId(temp.id);
+    setSelectedTaskIds([temp.id]);
   };
 
-  // COPY & PASTE OPERATIONS
+  // MULTI-TASK BULK ACTIONS
+  const handleBulkToggleCompleted = (completed: boolean) => {
+    if (selectedTaskIds.length === 0) return;
+    const { tasks, score } = getRawDayData(selectedDateKey);
+    const updatedTasks = tasks.map((t) =>
+      selectedTaskIds.includes(t.id) ? { ...t, completed } : t
+    );
+    updateAndSave(selectedDateKey, updatedTasks, score);
+    showToast(`${selectedTaskIds.length} tugas ditandai ${completed ? "selesai" : "belum selesai"}.`);
+  };
+
+  const handleDeleteSelectedTasks = () => {
+    if (selectedTaskIds.length === 0) return;
+    const { tasks, score } = getRawDayData(selectedDateKey);
+    const count = selectedTaskIds.length;
+    const remaining = tasks
+      .filter((t) => !selectedTaskIds.includes(t.id))
+      .map((t, idx) => ({ ...t, order: idx + 1 }));
+    updateAndSave(selectedDateKey, remaining, score);
+    setSelectedTaskIds([]);
+    showToast(`${count} tugas terpilih telah dihapus.`);
+  };
+
+  // COPY & PASTE OPERATIONS (SINGLE & MULTI)
   const handleCopySingleTask = (task: TimeBoxTask) => {
     setClipboard({
       type: "single",
       tasks: [{ ...task, completed: false }]
     });
     showToast(`Tugas "${task.text || 'Tugas'}" disalin (Ctrl+C)!`);
+  };
+
+  const handleCopySelectedTasks = () => {
+    if (selectedTaskIds.length === 0) {
+      // If no task is specifically selected, fallback to copying whole day
+      if (selectedDateKey) {
+        const dayObj = weekDays.find((d) => d.dateKey === selectedDateKey);
+        const dayName = dayObj ? dayObj.dayName : selectedDateKey;
+        handleCopyDayTasks(selectedDateKey, dayName);
+      }
+      return;
+    }
+
+    const { tasks } = getRawDayData(selectedDateKey);
+    const tasksToCopy = tasks.filter((t) => selectedTaskIds.includes(t.id));
+    if (tasksToCopy.length === 0) return;
+
+    const dayObj = weekDays.find((d) => d.dateKey === selectedDateKey);
+    const dayName = dayObj ? dayObj.dayName : selectedDateKey;
+
+    setClipboard({
+      type: "day",
+      tasks: tasksToCopy.map((t) => ({ ...t, completed: false })),
+      sourceDateLabel: `${tasksToCopy.length} tugas dari ${dayName}`
+    });
+    showToast(`${tasksToCopy.length} tugas terpilih disalin (Ctrl+C)!`);
   };
 
   const handleCopyDayTasks = (dateKey: string, dayName: string) => {
@@ -667,19 +769,17 @@ export default function TimeBoxView({
 
     const merged = [...currentTasks, ...newPastedTasks];
     updateAndSave(targetDateKey, merged, score);
-    if (newPastedTasks.length > 0) {
-      setSelectedTaskId(newPastedTasks[0].id);
-    }
+    setSelectedTaskIds(newPastedTasks.map((t) => t.id));
     showToast(`${newPastedTasks.length} tugas berhasil ditempel (Ctrl+V)!`);
   };
 
-  // KEYBOARD SHORTCUTS LISTENER: Ctrl+C and Ctrl+V for selected task or selected day panel
+  // KEYBOARD SHORTCUTS LISTENER: Ctrl+C and Ctrl+V for selected tasks or day panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
       if (!isCtrlOrCmd) {
         if (e.key === "Escape") {
-          setSelectedTaskId(null);
+          setSelectedTaskIds([]);
         }
         return;
       }
@@ -693,25 +793,32 @@ export default function TimeBoxView({
 
       // --- Handle Ctrl + C (Copy) ---
       if (e.key === "c" || e.key === "C") {
-        // If user has highlighted characters inside an active input, let native browser copy text
+        // If user has highlighted text inside an active input, let native browser copy
         const selectionText = window.getSelection()?.toString();
         if (isInputActive && selectionText && selectionText.trim().length > 0) {
           return;
         }
 
-        // If a single task is selected
-        if (selectedTaskId && selectedDateKey) {
+        // If tasks are selected
+        if (selectedTaskIds.length > 0 && selectedDateKey) {
           const { tasks } = getRawDayData(selectedDateKey);
-          const taskToCopy = tasks.find((t) => t.id === selectedTaskId);
-          if (taskToCopy) {
+          const tasksToCopy = tasks.filter((t) => selectedTaskIds.includes(t.id));
+          if (tasksToCopy.length > 0) {
             e.preventDefault();
-            handleCopySingleTask(taskToCopy);
+            const dayObj = weekDays.find((d) => d.dateKey === selectedDateKey);
+            const dayName = dayObj ? dayObj.dayName : selectedDateKey;
+            setClipboard({
+              type: "day",
+              tasks: tasksToCopy.map((t) => ({ ...t, completed: false })),
+              sourceDateLabel: `${tasksToCopy.length} tugas dari ${dayName}`
+            });
+            showToast(`${tasksToCopy.length} tugas terpilih disalin (Ctrl+C)!`);
             return;
           }
         }
 
-        // If no task selected, but a day panel is active
-        if (selectedDateKey && !selectedTaskId) {
+        // If no tasks selected, but a day panel is active
+        if (selectedDateKey && selectedTaskIds.length === 0) {
           const dayObj = weekDays.find((d) => d.dateKey === selectedDateKey);
           const dayName = dayObj ? dayObj.dayName : selectedDateKey;
           const { tasks } = getDayData(selectedDateKey);
@@ -724,12 +831,10 @@ export default function TimeBoxView({
 
       // --- Handle Ctrl + V (Paste) ---
       if (e.key === "v" || e.key === "V") {
-        // If typing inside an active input field, let native browser paste text
         if (isInputActive) {
           return;
         }
 
-        // If clipboard contains timebox tasks
         if (clipboard && clipboard.tasks.length > 0) {
           const targetDate = selectedDateKey || todayKey;
           e.preventDefault();
@@ -740,7 +845,7 @@ export default function TimeBoxView({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTaskId, selectedDateKey, clipboard, daysData, weekDays, todayKey]);
+  }, [selectedTaskIds, selectedDateKey, clipboard, daysData, weekDays, todayKey]);
 
   // SCORE (NILAI) OPERATION
   const handleScoreChange = (dateKey: string, value: string) => {
@@ -760,6 +865,7 @@ export default function TimeBoxView({
   };
 
   // Total summary across the 7 days of this week
+  // CATATAN: Tugas dengan prioritas "DELETE" tidak dijumlahkan ke total tugas dan diabaikan di progress bar
   const weekStats = useMemo(() => {
     let totalTasks = 0;
     let completedTasks = 0;
@@ -768,11 +874,14 @@ export default function TimeBoxView({
 
     weekDays.forEach(({ dateKey }) => {
       const { tasks, score } = getRawDayData(dateKey);
-      totalTasks += tasks.length;
       tasks.forEach((t) => {
-        if (t.completed) completedTasks++;
         if (priorityCounts[t.priority] !== undefined) {
           priorityCounts[t.priority]++;
+        }
+        // Abaikan tugas prioritas "delete" dari total dan hitungan selesai
+        if (t.priority !== "delete") {
+          totalTasks++;
+          if (t.completed) completedTasks++;
         }
       });
       if (score !== "" && score !== undefined) {
@@ -796,7 +905,15 @@ export default function TimeBoxView({
   const hasCustomDimensions = Object.keys(panelWidths).length > 0 || Object.keys(panelHeights).length > 0;
 
   return (
-    <div className="space-y-6" id="timebox-view">
+    <div
+      className="space-y-6"
+      id="timebox-view"
+      onClick={() => {
+        if (selectedTaskIds.length > 0) {
+          setSelectedTaskIds([]);
+        }
+      }}
+    >
       {/* Toast notification pill */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce">
@@ -1016,8 +1133,10 @@ export default function TimeBoxView({
       <div className="flex flex-wrap gap-4.5 items-start justify-start w-full">
         {weekDays.map(({ dateKey, dayName, dayNum, monthName, isToday, isWeekend }) => {
           const { tasks, score } = getDayData(dateKey);
-          const completedCount = tasks.filter((t) => t.completed).length;
-          const totalCount = tasks.length;
+          // Abaikan tugas prioritas "delete" dari total dan hitungan selesai serta progress bar
+          const activeTasks = tasks.filter((t) => t.priority !== "delete");
+          const completedCount = activeTasks.filter((t) => t.completed).length;
+          const totalCount = activeTasks.length;
           const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
           const panelWidth = panelWidths[dateKey] || DEFAULT_PANEL_WIDTH;
           const panelHeight = panelHeights[dateKey] || DEFAULT_PANEL_HEIGHT;
@@ -1027,7 +1146,13 @@ export default function TimeBoxView({
           return (
             <div
               key={dateKey}
-              onClick={() => setSelectedDateKey(dateKey)}
+              onClick={(e) => {
+                setSelectedDateKey(dateKey);
+                // Jika klik pada panel hari (bukan di dalam tugas), bersihkan seleksi tugas
+                if (selectedTaskIds.length > 0) {
+                  setSelectedTaskIds([]);
+                }
+              }}
               style={{
                 width: `${panelWidth}px`,
                 flex: `0 0 ${panelWidth}px`,
@@ -1183,8 +1308,29 @@ export default function TimeBoxView({
                   </div>
                 </div>
 
-                {/* Header Action Menu: Copy Day / Paste / Active Indicator */}
+                {/* Header Action Menu: Select All / Copy Day / Paste */}
                 <div className="flex items-center gap-1">
+                  {tasks.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectAllDay(dateKey);
+                      }}
+                      title={
+                        selectedDateKey === dateKey && selectedTaskIds.length === tasks.length
+                          ? "Batalkan pilihan semua tugas di hari ini"
+                          : "Pilih semua tugas di hari ini (Multi-Select)"
+                      }
+                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                        selectedDateKey === dateKey && selectedTaskIds.length === tasks.length
+                          ? "text-brand-teal bg-teal-50 dark:bg-teal-950/40"
+                          : "text-slate-400 hover:text-brand-teal hover:bg-slate-200/60 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <ListChecks className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1236,7 +1382,7 @@ export default function TimeBoxView({
                   />
                 </div>
 
-                {/* Completion Mini Pill */}
+                {/* Completion Mini Pill (Mengabaikan prioritas DELETE) */}
                 <div className="text-[10px] font-bold text-slate-400 shrink-0 text-right">
                   <span className={completedCount === totalCount && totalCount > 0 ? "text-brand-teal font-extrabold" : ""}>
                     {completedCount}/{totalCount}
@@ -1244,9 +1390,9 @@ export default function TimeBoxView({
                 </div>
               </div>
 
-              {/* Progress bar line */}
+              {/* Progress bar line - Background Abu-Abu untuk sisa/yang belum selesai */}
               {totalCount > 0 && (
-                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1 overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 overflow-hidden">
                   <div
                     className="bg-brand-teal h-full transition-all duration-300"
                     style={{ width: `${pct}%` }}
@@ -1272,19 +1418,18 @@ export default function TimeBoxView({
                   tasks.map((task, idx) => {
                     const pConf = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.do;
                     const durationStr = calculateDuration(task.startTime, task.endTime);
-                    const isTaskSelected = selectedTaskId === task.id;
+                    const selected = isTaskSelected(task.id);
 
                     return (
                       <div
                         key={task.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedDateKey(dateKey);
-                          setSelectedTaskId(task.id);
+                          handleSelectTask(dateKey, task.id, e);
                         }}
                         className={`p-2.5 rounded-xl border transition-all duration-150 flex flex-col gap-2 relative cursor-pointer ${
-                          isTaskSelected
-                            ? "ring-2 ring-brand-teal bg-teal-50/20 dark:bg-teal-950/30 border-brand-teal shadow-xs"
+                          selected
+                            ? "ring-2 ring-brand-teal bg-teal-50/50 dark:bg-teal-950/40 border-brand-teal shadow-xs"
                             : task.completed
                             ? isDark
                               ? "bg-slate-950/40 border-slate-800/60 opacity-60"
@@ -1294,10 +1439,11 @@ export default function TimeBoxView({
                             : "bg-white border-slate-200/80 hover:border-teal-300 shadow-xs"
                         }`}
                       >
-                        {/* Baris 1: Checkbox + Input Nama Tugas + Tombol Pindah (Atas/Bawah) + Tombol Salin + Tombol Hapus */}
+                        {/* Baris 1: Checkbox Status + Input Nama Tugas + Tombol Pindah (Atas/Bawah) + Tombol Salin + Tombol Hapus */}
                         <div className="flex items-center gap-1.5">
-                          {/* Checkbox button - Hijau Tosca */}
+                          {/* Checkbox Status Selesai / Belum - Hijau Tosca */}
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleToggleTask(dateKey, task.id);
@@ -1319,7 +1465,9 @@ export default function TimeBoxView({
                             value={task.text}
                             onFocus={() => {
                               setSelectedDateKey(dateKey);
-                              setSelectedTaskId(task.id);
+                              if (!isTaskSelected(task.id)) {
+                                setSelectedTaskIds([task.id]);
+                              }
                             }}
                             onChange={(e) => handleUpdateTaskText(dateKey, task.id, e.target.value)}
                             className={`w-full text-xs font-semibold bg-transparent outline-none leading-normal min-w-0 ${
@@ -1374,7 +1522,7 @@ export default function TimeBoxView({
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedDateKey(dateKey);
-                              setSelectedTaskId(task.id);
+                              setSelectedTaskIds([task.id]);
                               handleCopySingleTask(task);
                             }}
                             title="Salin Tugas Ini (Ctrl+C)"
@@ -1438,7 +1586,7 @@ export default function TimeBoxView({
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedDateKey(dateKey);
-                              setSelectedTaskId(task.id);
+                              setSelectedTaskIds([task.id]);
                               setActiveTimePicker({
                                 dateKey,
                                 taskId: task.id,
@@ -1515,6 +1663,67 @@ export default function TimeBoxView({
           );
         })}
       </div>
+
+      {/* Floating Multi-Select Action Bar */}
+      {selectedTaskIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[94%] sm:w-auto">
+          <div className={`p-2.5 sm:px-4 sm:py-3 rounded-2xl border shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between sm:justify-start gap-2 sm:gap-3 text-xs animate-in slide-in-from-bottom-4 duration-200 ${
+            isDark
+              ? "bg-slate-900/95 border-teal-500/50 text-slate-100 ring-1 ring-teal-500/30"
+              : "bg-white/95 border-teal-300 text-slate-800 ring-1 ring-teal-400/30"
+          }`}>
+            <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-800">
+              <div className="w-6 h-6 rounded-lg bg-brand-teal text-white flex items-center justify-center font-black text-xs">
+                {selectedTaskIds.length}
+              </div>
+              <span className="font-extrabold text-xs">
+                Tugas Dipilih
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={handleCopySelectedTasks}
+                title="Salin Semua Tugas Terpilih (Ctrl+C)"
+                className="px-3 py-1.5 rounded-xl bg-brand-teal hover:bg-teal-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Salin (Ctrl+C)</span>
+              </button>
+
+              <button
+                onClick={() => handleBulkToggleCompleted(true)}
+                title="Tandai Selesai Semua Tugas Terpilih"
+                className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1 transition cursor-pointer ${
+                  isDark ? "bg-slate-800 border-slate-700 hover:bg-slate-700 text-teal-300" : "bg-teal-50 border-teal-200 hover:bg-teal-100 text-teal-800"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" />
+                <span className="hidden sm:inline">Selesai</span>
+              </button>
+
+              <button
+                onClick={handleDeleteSelectedTasks}
+                title="Hapus Semua Tugas Terpilih"
+                className="px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus</span>
+              </button>
+
+              <button
+                onClick={handleClearSelection}
+                title="Batalkan Pilihan (Esc)"
+                className={`p-1.5 rounded-xl border transition cursor-pointer text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ${
+                  isDark ? "border-slate-800 hover:bg-slate-800" : "border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POP-UP TIME PICKER MODAL */}
       {activeTimePicker && (
