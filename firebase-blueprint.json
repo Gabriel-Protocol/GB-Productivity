@@ -19,16 +19,21 @@
     },
     "UserDay": {
       "title": "UserDay",
-      "description": "Daily recording of productive hours and completed habits",
+      "description": "Daily recording of productive hours, completed habits, and timebox data",
       "type": "object",
       "properties": {
         "hours": { "type": "number" },
         "completedHabits": {
           "type": "array"
         },
+        "timeboxTasks": {
+          "type": "array"
+        },
+        "timeboxScore": {
+          "type": "string"
+        },
         "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["hours", "completedHabits"]
+      }
     }
   },
   "firestore": {

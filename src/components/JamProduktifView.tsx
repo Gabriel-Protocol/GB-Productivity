@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DailyRecord, UserConfig } from "../types";
-import { saveDailyRecord, saveProductivitySummary, calculateAndSaveSummary } from "../lib/firebase";
+import { saveProductiveHours, saveProductivitySummary, calculateAndSaveSummary } from "../lib/firebase";
 import { Clock, TrendingUp, AlertCircle, Info, CalendarDays, CheckCircle2, Save } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -139,10 +139,10 @@ export default function JamProduktifView({
 
     setSavingStatus((prev) => ({ ...prev, [dateKey]: "saving" }));
     try {
+      await saveProductiveHours(userId, dateKey, resolvedHours);
+
       const existingRecord = daysData[dateKey] || { hours: 0, completedHabits: [] };
       const updatedRecord = { ...existingRecord, hours: resolvedHours };
-
-      await saveDailyRecord(userId, dateKey, updatedRecord);
       
       const mergedDaysData = {
         ...daysData,

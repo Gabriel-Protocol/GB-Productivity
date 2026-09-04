@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { DailyRecord, UserConfig, HabitGroup } from "../types";
-import { saveDailyRecord } from "../lib/firebase";
+import { saveCompletedHabits } from "../lib/firebase";
 import { CheckSquare, Calendar, ChevronLeft, ChevronRight, Award, Flame, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -146,10 +146,7 @@ export default function HabitsView({
     }
 
     try {
-      const existingRecord = daysData[activeDateStr] || { hours: 0, completedHabits: [] };
-      const updatedRecord = { ...existingRecord, completedHabits: newCompleted };
-
-      await saveDailyRecord(userId, activeDateStr, updatedRecord);
+      await saveCompletedHabits(userId, activeDateStr, newCompleted);
       onDataUpdated(activeDateStr, newCompleted);
     } catch (err) {
       console.error("Gagal mengubah penyelesaian habit:", err);

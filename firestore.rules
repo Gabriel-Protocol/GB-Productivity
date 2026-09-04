@@ -26,11 +26,9 @@ service cloud.firestore {
     }
 
     function isValidUserDay(data) {
-      return data.hours is number &&
-             data.hours >= 0 &&
-             data.hours <= 24 &&
-             data.completedHabits is list &&
-             data.completedHabits.size() <= 100;
+      return (data.hours == null || (data.hours is number && data.hours >= 0 && data.hours <= 24)) &&
+             (data.completedHabits == null || (data.completedHabits is list && data.completedHabits.size() <= 100)) &&
+             (data.timeboxTasks == null || (data.timeboxTasks is list && data.timeboxTasks.size() <= 200));
     }
 
     function isValidDateId(id) {

@@ -9,6 +9,8 @@ import {
   auth,
   getOrCreateUserConfig,
   getUserDays,
+  subscribeUserDays,
+  subscribeUserConfig,
   UserConfig,
   DailyRecord,
   DEFAULT_CONFIG,
@@ -39,21 +41,39 @@ export default function App() {
   const [appLoading, setAppLoading] = useState(true);
   const [networkError, setNetworkError] = useState(false);
 
-  // Monitor Google Authentication session
+  // Monitor Google Authentication session & sync in real-time across devices
   useEffect(() => {
     setAppLoading(true);
     setNetworkError(false);
 
-    const unsubscribe = initAuth(
+    let unsubDays: (() => void) | null = null;
+    let unsubConfig: (() => void) | null = null;
+
+    const unsubscribeAuth = initAuth(
       async (user) => {
         try {
           setCurrentUser(user);
-          // Fetch settings & data from cloud Firestore
-          const config = await getOrCreateUserConfig(user.uid);
-          setUserConfig(config);
 
-          const days = await getUserDays(user.uid);
-          setDaysData(days);
+          // Fast initial load
+          const [initialConfig, initialDays] = await Promise.all([
+            getOrCreateUserConfig(user.uid),
+            getUserDays(user.uid)
+          ]);
+          setUserConfig(initialConfig);
+          setDaysData(initialDays);
+
+          // Stop previous subscriptions if any
+          if (unsubDays) unsubDays();
+          if (unsubConfig) unsubConfig();
+
+          // Real-time synchronization listeners for multi-device support
+          unsubDays = subscribeUserDays(user.uid, (freshDays) => {
+            setDaysData(freshDays);
+          });
+
+          unsubConfig = subscribeUserConfig(user.uid, (freshConfig) => {
+            setUserConfig(freshConfig);
+          });
         } catch (err) {
           console.error("Failed to bootstrap user config or logs:", err);
           setNetworkError(true);
@@ -62,6 +82,8 @@ export default function App() {
         }
       },
       () => {
+        if (unsubDays) unsubDays();
+        if (unsubConfig) unsubConfig();
         setCurrentUser(null);
         setUserConfig(null);
         setDaysData({});
@@ -69,8 +91,40 @@ export default function App() {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubDays) unsubDays();
+      if (unsubConfig) unsubConfig();
+    };
   }, []);
+
+  // Re-sync with server on tab focus / visibilitychange (waking device or switching back from background)
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const handleResumeSync = async () => {
+      if (document.visibilityState === "visible") {
+        try {
+          const [latestConfig, latestDays] = await Promise.all([
+            getOrCreateUserConfig(currentUser.uid),
+            getUserDays(currentUser.uid)
+          ]);
+          setUserConfig(latestConfig);
+          setDaysData(latestDays);
+        } catch (e) {
+          console.warn("Auto-sync on page resume encountered an error:", e);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleResumeSync);
+    window.addEventListener("focus", handleResumeSync);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleResumeSync);
+      window.removeEventListener("focus", handleResumeSync);
+    };
+  }, [currentUser?.uid]);
 
   // Update values client-side to reflect dynamic changes and trigger recalculations instantly
   const handleHoursUpdated = (dateId: string, hours: number) => {

@@ -17,8 +17,10 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  updateDoc,
   collection, 
   getDocs,
+  onSnapshot,
   writeBatch
 } from "firebase/firestore";
 import defaultFirebaseConfig from "../../firebase-applet-config.json";
@@ -208,6 +210,64 @@ export async function getUserDays(userId: string): Promise<Record<string, DailyR
   return result;
 }
 
+/**
+ * Real-time listener for user configuration (syncs across multiple open tabs or devices).
+ */
+export function subscribeUserConfig(
+  userId: string,
+  onUpdate: (config: UserConfig) => void,
+  onError?: (error: any) => void
+): () => void {
+  const docRef = doc(db, "users", userId, "config", "main");
+  return onSnapshot(
+    docRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        onUpdate({
+          ...DEFAULT_CONFIG,
+          ...docSnap.data()
+        } as UserConfig);
+      }
+    },
+    (error) => {
+      console.warn("Real-time listener for user config encountered an issue:", error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Real-time listener for all user day records.
+ * Whenever any day's data is updated on device A, device B immediately receives the update.
+ */
+export function subscribeUserDays(
+  userId: string,
+  onUpdate: (days: Record<string, DailyRecord>) => void,
+  onError?: (error: any) => void
+): () => void {
+  const colRef = collection(db, "users", userId, "days");
+  return onSnapshot(
+    colRef,
+    (querySnapshot) => {
+      const result: Record<string, DailyRecord> = {};
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        result[docSnap.id] = {
+          hours: Number(data.hours || 0),
+          completedHabits: data.completedHabits || [],
+          timeboxTasks: data.timeboxTasks || [],
+          timeboxScore: data.timeboxScore !== undefined ? data.timeboxScore : ""
+        };
+      });
+      onUpdate(result);
+    },
+    (error) => {
+      console.warn("Real-time listener for user days encountered an issue:", error);
+      if (onError) onError(error);
+    }
+  );
+}
+
 export async function saveProductivitySummary(
   userId: string, 
   summary: { totalHoursMonth: number; avgHoursDay: number; daysFilled: number; indicatorSpread: string },
@@ -363,13 +423,56 @@ export function sanitizeTimeBoxTasks(tasks: TimeBoxTask[]): any[] {
   });
 }
 
+/**
+ * Atomically saves ONLY the productive hours for a given day.
+ * Will NEVER overwrite or mutate completedHabits or timeboxTasks.
+ */
+export async function saveProductiveHours(userId: string, dateId: string, hours: number): Promise<void> {
+  try {
+    const docRef = doc(db, "users", userId, "days", dateId);
+    const numericHours = Number(hours || 0);
+    try {
+      await updateDoc(docRef, { hours: numericHours });
+    } catch {
+      // Document does not exist yet; initialize day record safely
+      await setDoc(docRef, { hours: numericHours, completedHabits: [] }, { merge: true });
+    }
+  } catch (error) {
+    console.error(`Failed to save productive hours for date ${dateId}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Atomically saves ONLY the completed habits for a given day.
+ * Will NEVER overwrite or mutate hours, timeboxTasks, or timeboxScore.
+ */
+export async function saveCompletedHabits(userId: string, dateId: string, completedHabits: string[]): Promise<void> {
+  try {
+    const docRef = doc(db, "users", userId, "days", dateId);
+    const habitsList = Array.isArray(completedHabits) ? completedHabits : [];
+    try {
+      await updateDoc(docRef, { completedHabits: habitsList });
+    } catch {
+      // Document does not exist yet; initialize day record safely
+      await setDoc(docRef, { hours: 0, completedHabits: habitsList }, { merge: true });
+    }
+  } catch (error) {
+    console.error(`Failed to save completed habits for date ${dateId}`, error);
+    throw error;
+  }
+}
+
 export async function saveDailyRecord(userId: string, dateId: string, record: DailyRecord): Promise<void> {
   try {
     const docRef = doc(db, "users", userId, "days", dateId);
-    const dataToSave: any = {
-      hours: Number(record.hours || 0),
-      completedHabits: record.completedHabits || []
-    };
+    const dataToSave: any = {};
+    if (record.hours !== undefined) {
+      dataToSave.hours = Number(record.hours || 0);
+    }
+    if (record.completedHabits !== undefined) {
+      dataToSave.completedHabits = record.completedHabits || [];
+    }
     if (record.timeboxTasks !== undefined) {
       dataToSave.timeboxTasks = sanitizeTimeBoxTasks(record.timeboxTasks);
     }
@@ -396,7 +499,17 @@ export async function saveTimeBoxRecord(
       timeboxTasks: cleanedTasks,
       timeboxScore: score !== undefined && score !== null ? score : ""
     };
-    await setDoc(docRef, removeUndefinedFields(dataToSave), { merge: true });
+    const cleaned = removeUndefinedFields(dataToSave);
+    try {
+      await updateDoc(docRef, cleaned);
+    } catch {
+      // Document does not exist yet; initialize safely
+      await setDoc(docRef, {
+        hours: 0,
+        completedHabits: [],
+        ...cleaned
+      }, { merge: true });
+    }
   } catch (error) {
     console.error(`Failed to preserve timebox record for date ${dateId}`, error);
     throw error;
